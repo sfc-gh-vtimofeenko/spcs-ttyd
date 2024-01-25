@@ -1,0 +1,18 @@
+---
+name: Build and push small image to Snowflake
+
+on:
+  workflow_dispatch: # Run manually only
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - run: nix run .#buildAndPushToSpcs -- "ttydContainer"
+        env:
+          REGISTRY_URL: ${{ secrets.REGISTRY_URL }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
