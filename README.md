@@ -99,7 +99,6 @@ To add/remove a package to the container, edit the [container
 definition](./packages/ttydContainer/package.nix) file and
 rerun the pipeline.
 
-
 # Running without Nix
 
 The main mechanism through which the shell is displayed in the browser is
