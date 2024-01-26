@@ -7,6 +7,13 @@ with bash as a webshell:
 
 # How to
 
+There are two sample images provided:
+
+- Nix-based one
+- [Debian-based one](./non-nix/Dockerfile)
+
+The instructions below could be applied to either one of them
+
 ## Initial setup
 
 Follow the [common setup](https://docs.snowflake.com/developer-guide/snowpark-container-services/tutorials/common-setup)
@@ -25,13 +32,15 @@ tutorial to have the image repository and a compute pool in your account.
       repository
     - `SNOWFLAKE_PASSWORD`: password for `SNOWFLAKE_USER`
 
-3. Run "Build and push image to Snowflake" action
+3. Run "Build and push image to Snowflake" action for the chosen image
 
 ## Without Github actions
 
 SPCS (at the time of writing) only works with `x86_64` images. So, on an M1
 machine you would need access to a remote builder capable of building `x86_64`
 packages – for example a virtual machine.
+
+### Nix-based workflow
 
 The nix-based image requires [`nix`](https://nixos.org/download).
 
@@ -45,6 +54,12 @@ The nix-based image requires [`nix`](https://nixos.org/download).
     variables
 
 4. Run `nix run <pathToClonedRepo>#buildAndPushToSpcs -- "ttydContainer"`
+
+### Docker-based workflow
+
+Change directory to `./non-nix/` and follow the "Build image and upload" steps
+from [Snowpark container services
+tutorial](https://docs.snowflake.com/en/developer-guide/snowpark-container-services/tutorials/tutorial-1#build-an-image-and-upload).
 
 ## Final steps
 
@@ -60,7 +75,7 @@ machine).
     spec:
       containers:
         - name: <container_name>
-          image: /<database>>/<schema>/<registry_name>/nix-ttydcontainer:latest
+          image: /<database>>/<schema>/<registry_name>/<containerTag>:latest
           command:
             - "ttyd"
             - "--port=8000"
@@ -72,6 +87,9 @@ machine).
           public: true
     $$;
     ```
+
+    where `<containerTag>` is `nix-ttydcontainer` or `ttydcontainer`. Check
+    action logs for the specific value.
 
 2. Wait for endpoints provisioning to complete (you can monitor the output of
    `SHOW ENDPOINTS IN SERVICE <serviceName>`)
@@ -101,8 +119,10 @@ To add/remove a package to the container, edit the [container
 definition](./packages/ttydContainer/package.nix) file and
 rerun the pipeline.
 
-# Running without Nix
+# Running without Nix (general instructions)
 
 The main mechanism through which the shell is displayed in the browser is
 [ttyd](https://tsl0922.github.io/ttyd/) which can be added to any other Docker
 image.
+
+A sample Debian-based image is provided in this repo.
