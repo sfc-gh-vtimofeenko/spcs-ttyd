@@ -70,6 +70,7 @@
               deadnix.enable = true;
               statix.enable = true;
               yamllint.enable = true;
+              markdownlint.enable = true;
             };
             settings = {
               deadnix.edit = true;
@@ -77,6 +78,7 @@
                 ignore = [ ".direnv/" ];
                 format = "stderr";
               };
+              markdownlint.config.MD041 = false; # Disable "first line should be a heading check"
               treefmt.package = config.treefmt.build.wrapper;
             };
           };
