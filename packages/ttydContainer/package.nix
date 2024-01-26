@@ -50,7 +50,7 @@ let
         htop# Some monitoring
         ;
     })
-  ++ [ nixConfig fixUpEnv ];
+  ++ [ nixConfig ];
 in
 pkgs.dockerTools.buildImage {
   name = "ttyd-container";
@@ -69,25 +69,9 @@ pkgs.dockerTools.buildImage {
     }) ++ commonPackages;
   };
 
-  /* runAsRoot needs nix with `kvm`. This can be achieved with cachix action:
-
-    - uses: cachix/install-nix-action@vXX
-      with:
-        extra_nix_config: "system-features = nixos-test benchmark big-parallel kvm"
-
-    which might need udevadm action:
-
-    - name: Enable KVM group perms
-        run: |
-            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-            sudo udevadm control --reload-rules
-            sudo udevadm trigger --name-match=kvm
-
-    source: https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
-
-    TODO: try with cachix and try with det sys action for the magic cache.
-  */
-  # runAsRoot = "";
+  runAsRoot = ''
+    ${pkgs.lib.getExe fixUpEnv}
+  '';
 
   architecture = "amd64";
 
