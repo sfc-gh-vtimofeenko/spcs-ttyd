@@ -76,7 +76,7 @@ machine).
 3. Open the `ttyd` endpoint URL
 4. Run `fixup-env` command
 
-# Running commands inside the container
+# Packages in the container
 
 The container comes with certain tools pre-installed (see the list in [package
 definition](./packages/ttydContainer/package.nix)).
@@ -92,10 +92,16 @@ $ nix run nixpkgs#hello
 Hello World!
 ```
 
+This works for any package from [nixpkgs](https://search.nixos.org/) or for any
+flake reference.
+
+To add/remove a package to the container, edit the [container
+definition](./packages/ttydContainer/package.nix) file and
+rerun the pipeline.
+
+
 # Running without Nix
 
 The main mechanism through which the shell is displayed in the browser is
 [ttyd](https://tsl0922.github.io/ttyd/) which can be added to any other Docker
 image.
-
-The `endpoints` and `command` above can be reused.
