@@ -29,20 +29,22 @@ tutorial to have the image repository and a compute pool in your account.
 
 ## Without Github actions
 
+SPCS (at the time of writing) only works with `x86_64` images. So, on an M1
+machine you would need access to a remote builder capable of building `x86_64`
+packages – for example a virtual machine.
+
+The nix-based image requires [`nix`](https://nixos.org/download).
+
 1. Have `nix` available (optionally with `direnv`)
 2. Clone the repository
 3. Configure the environment variables:
 
     If using `direnv`: edit `.envrc`.
 
-    Otherwise, define `REGISTRY_URL`, `SNOWFLAKE_USER` `SNOWFLAKE_PASSWORD`
+    Otherwise, define `REGISTRY_URL`, `SNOWFLAKE_USER` and `SNOWFLAKE_PASSWORD`
     variables
 
 4. Run `nix run <pathToClonedRepo>#buildAndPushToSpcs -- "ttydContainer"`
-
-SPCS (at the time of writing) only works with `x86_64` images. So, on an M1
-machine you would need access to a remote builder capable of building `x86_64`
-packages – for example a virtual machine.
 
 ## Final steps
 
