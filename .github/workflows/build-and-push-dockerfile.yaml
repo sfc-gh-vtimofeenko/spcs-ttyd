@@ -8,6 +8,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Mask repo-related values in Github logs
+        run: |
+          IFS='/' read -ra URL_PARTS <<< "${{ secrets.REGISTRY_URL }}"
+          for i in "${URL_PARTS[@]}"; do
+             echo "::add-mask::$i"
+          done
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Login to Snowflake image registry
