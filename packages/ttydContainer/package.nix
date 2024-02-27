@@ -49,6 +49,8 @@ let
         inetutils# Telnet
         htop# Some monitoring
         gnugrep
+        snowcli-2x
+        snowsql
         ;
     })
   ++ [ nixConfig fixUpEnv ];
