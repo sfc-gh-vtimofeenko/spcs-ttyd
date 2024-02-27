@@ -48,6 +48,7 @@ let
         ttyd# webshell
         inetutils# Telnet
         htop# Some monitoring
+        gnugrep
         ;
     })
   ++ [ nixConfig fixUpEnv ];
