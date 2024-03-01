@@ -263,11 +263,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1707351163,
-        "narHash": "sha256-qGNbaLlpoxG5GmDl7tUoc6DLzKiWOFO5uy5GfzwDTdU=",
+        "lastModified": 1709316861,
+        "narHash": "sha256-3RC6lZlBgcz7PSBMDYh2/ko+8tv2Sj1/2FcIxHfCgj0=",
         "owner": "sfc-gh-vtimofeenko",
         "repo": "snowcli-nix-flake",
-        "rev": "c063998e7f88da30ddff1ad0e455d765717c25ab",
+        "rev": "9666449f6e0173960d80702fb17ffc5fd6eb0db0",
         "type": "github"
       },
       "original": {
@@ -281,15 +281,15 @@
       "locked": {
         "lastModified": 1707138985,
         "narHash": "sha256-lAHQrYN+L9cK0rpBVYvCylVjzpayE1KTKPwZQ0zvR6U=",
-        "owner": "Snowflake-Labs",
-        "repo": "snowcli",
+        "owner": "snowflakedb",
+        "repo": "snowflake-cli",
         "rev": "ac082923d81fdfff6eefcd760e583c51d107fd6c",
         "type": "github"
       },
       "original": {
-        "owner": "Snowflake-Labs",
+        "owner": "snowflakedb",
         "ref": "v2.0.0",
-        "repo": "snowcli",
+        "repo": "snowflake-cli",
         "type": "github"
       }
     },
