@@ -51,6 +51,7 @@ let
         gnugrep
         snowcli-2x
         snowsql
+        toybox
         ;
     })
   ++ [ nixConfig fixUpEnv ];
