@@ -94,8 +94,6 @@ machine).
 2. Wait for endpoints provisioning to complete (you can monitor the output of
    `SHOW ENDPOINTS IN SERVICE <serviceName>`)
 3. Open the `ttyd` endpoint URL
-4. If using the Nix-based image, run `fixup-env` command to set up the
-   environment
 
 # Packages in the container
 

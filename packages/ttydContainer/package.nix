@@ -3,21 +3,6 @@
 let
   pkgs = targetPkgs;
 
-  fixUpEnv = pkgs.writeShellApplication {
-    name = "fixup-env";
-    runtimeInputs = [ pkgs.shadow ];
-
-    meta.description = "Performs post-setup updates in the container allowing to use nix command.";
-
-    text = ''
-      mkdir -p /tmp
-
-      ${pkgs.dockerTools.shadowSetup}
-      groupadd -r nixbld
-      for n in $(seq 1 10); do useradd -c "Nix build user $n" -d /var/empty -g nixbld -G nixbld -M -N -r -s "$(command -v nologin)" "nixbld$n"; done
-    '';
-  };
-
   nixConfig = pkgs.stdenv.mkDerivation {
     name = "nix-conf";
     src = ./.;
@@ -54,7 +39,7 @@ let
         moreutils
         ;
     })
-  ++ [ nixConfig fixUpEnv ];
+  ++ [ nixConfig ];
 in
 pkgs.dockerTools.buildImage {
   name = "ttyd-container";
@@ -73,25 +58,14 @@ pkgs.dockerTools.buildImage {
     }) ++ commonPackages;
   };
 
-  /* runAsRoot needs nix with `kvm`. This can be achieved with cachix action:
+  # Needs Nix runner with kvm capabilities. GH actions provide one.
+  runAsRoot = ''
+    mkdir -p /tmp
 
-    - uses: cachix/install-nix-action@vXX
-      with:
-        extra_nix_config: "system-features = nixos-test benchmark big-parallel kvm"
-
-    which might need udevadm action:
-
-    - name: Enable KVM group perms
-        run: |
-            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-            sudo udevadm control --reload-rules
-            sudo udevadm trigger --name-match=kvm
-
-    source: https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
-
-    TODO: try with cachix and try with det sys action for the magic cache.
-  */
-  # runAsRoot = "";
+    ${pkgs.dockerTools.shadowSetup}
+    groupadd -r nixbld
+    for n in $(seq 1 10); do useradd -c "Nix build user $n" -d /var/empty -g nixbld -G nixbld -M -N -r -s "$(command -v nologin)" "nixbld$n"; done
+  '';
 
   architecture = "amd64";
 
