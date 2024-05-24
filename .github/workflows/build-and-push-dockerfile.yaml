@@ -1,8 +1,9 @@
 ---
 name: Build from Dockerfile and push to Snowflake
 
+# yamllint disable-line rule:truthy
 on:
-  workflow_dispatch: # Run manually only
+  workflow_dispatch:  # Run manually only
 
 jobs:
   build:

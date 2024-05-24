@@ -1,5 +1,6 @@
 ---
 name: "Nix-related checks"
+# yamllint disable-line rule:truthy
 on:
   push:
     branches:
