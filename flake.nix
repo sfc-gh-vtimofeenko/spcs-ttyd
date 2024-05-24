@@ -13,9 +13,6 @@
         nixpkgs-unstable.follows = "nixpkgs-unstable";
         nixpkgs-stable.follows = "nixpkgs-stable";
         nixpkgs.follows = "nixpkgs";
-        # Only using 2x in this flake
-        snowcli-src-1x.follows = "";
-        snowflake-connector-python-1x.follows = "";
         # development
         devshell.follows = "devshell";
         pre-commit-hooks-nix.follows = "pre-commit-hooks-nix";
