@@ -36,9 +36,15 @@
 
   };
 
-  outputs = inputs@{ flake-parts, self, ... }:
+  outputs =
+    inputs@{ flake-parts, self, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
-      systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" "x86_64-darwin" ];
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "aarch64-darwin"
+        "x86_64-darwin"
+      ];
 
       imports = [
         inputs.devshell.flakeModule
@@ -47,13 +53,14 @@
       ];
 
       perSystem =
-        { config
-        , pkgs
-          /* These inputs are unused in the template, but might be useful later */
+        {
+          config,
+          pkgs,
+          # These inputs are unused in the template, but might be useful later
           # , self'
           # , inputs'
           # , system
-        , ...
+          ...
         }:
         let
           spcsTargetSystem = "x86_64-linux";
@@ -64,10 +71,13 @@
           };
         in
         {
-          packages.ttydContainer = import ./packages/ttydContainer/package.nix { targetPkgs = spcsTargetPkgs; inherit self; };
+          packages.ttydContainer = import ./packages/ttydContainer/package.nix {
+            targetPkgs = spcsTargetPkgs;
+            inherit self;
+          };
           apps.buildAndPushToSpcs = import ./apps/buildAndPushToSpcs { inherit pkgs; };
 
-          /* Development configuration */
+          # Development configuration
           treefmt = {
             programs = {
               nixpkgs-fmt.enable = true;
@@ -84,20 +94,26 @@
 
           pre-commit.settings = {
             hooks = {
-              treefmt.enable = true;
-              deadnix.enable = true;
-              statix.enable = true;
-              yamllint.enable = true;
-              markdownlint.enable = true;
-            };
-            settings = {
-              deadnix.edit = true;
-              statix = {
-                ignore = [ ".direnv/" ];
-                format = "stderr";
+              treefmt = {
+                enable = true;
+                package = config.treefmt.build.wrapper;
               };
-              markdownlint.config.MD041 = false; # Disable "first line should be a heading check"
-              treefmt.package = config.treefmt.build.wrapper;
+              deadnix = {
+                enable = true;
+                settings.edit = true;
+              };
+              statix = {
+                enable = true;
+                settings = {
+                  ignore = [ ".direnv/" ];
+                  format = "stderr";
+                };
+              };
+              yamllint.enable = true;
+              markdownlint = {
+                enable = true;
+                settings.configuration.MD041 = false;
+              }; # Disable "first line should be a heading check"
             };
           };
 
