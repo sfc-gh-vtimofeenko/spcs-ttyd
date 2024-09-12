@@ -126,7 +126,5 @@
             packages = builtins.attrValues { inherit (pkgs) jc jq skopeo; };
           };
         };
-
-      flake = { };
     };
 }
