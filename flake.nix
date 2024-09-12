@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
-    nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-23.11";
+    nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-24.05";
     nixpkgs.follows = "nixpkgs-stable";
 
     snowcli = {
@@ -53,10 +53,9 @@
       ];
 
       perSystem =
-        {
-          config,
-          pkgs,
-          # These inputs are unused in the template, but might be useful later
+        { config
+        , pkgs
+        , # These inputs are unused in the template, but might be useful later
           # , self'
           # , inputs'
           # , system
