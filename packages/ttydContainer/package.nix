@@ -37,6 +37,7 @@ let
         snowcli-2x
         snowsql
         moreutils
+        caddy
         ;
     })
   ++ [ nixConfig ];
