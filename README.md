@@ -138,8 +138,6 @@ spec:
        - name: webshell-1
          port: 8000
          public: true
-     networkPolicyConfig:
-       allowInternetEgress: true
    $$;
 
 ```
