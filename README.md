@@ -24,17 +24,43 @@ tutorial to have the image repository and a compute pool in your account.
 Short version:
 
 1. Clone/copy this repository
-2. Set up GitHub secrets for
-    - `REGISTRY_URL` : value can be obtained by running DESC IMAGE REPOSITORY
-      `<path>` SQL statement in Snowflake. `<path>` refers to the path to the image
-      repository in Snowflake in form of `<database>.<schema>.<imageRepo>`. If
-      following along the setup from tutorials, it is
-      tutorial_db.data_schema.tutorial_repository
+2. Set up a dedicated CI/CD user:
+
+    ```sql
+    USE ROLE useradmin;
+    CREATE OR REPLACE ROLE spcs_ci_cd_rl;
+
+    -- https://docs.snowflake.com/en/sql-reference/sql/create-user
+    CREATE OR REPLACE USER spcs_ci_cd_usr
+    DEFAULT_ROLE = spcs_ci_cd_rl
+    RSA_PUBLIC_KEY = '<publicKey>'
+    -- Prevents using password and some other fields
+    TYPE = SERVICE
+    COMMENT = 'CI/CD user to push image and create a service'
+    -- Optional: set up per-user network role
+    -- NETWORK_POLICY = CI_CD_POLICY
+    ;
+    GRANT ROLE spcs_ci_cd_rl TO USER spcs_ci_cd_usr;
+
+    GRANT USAGE ON DATABASE <dbName> TO ROLE spcs_ci_cd_rl;
+    GRANT USAGE ON SCHEMA <dbName>.<schemaName> TO ROLE spcs_ci_cd_rl;
+    -- Needs both read and write
+    GRANT READ,WRITE ON IMAGE REPOSITORY <dbName>.<schemaName>.<repoName>
+        TO ROLE spcs_ci_cd_rl;
+
+    ```
+
+3. Set up GitHub secrets for
+    - `REGISTRY_URL` : value can be obtained by running `DESC IMAGE REPOSITORY
+      <path>` SQL statement in Snowflake. `<path>` refers to the path to the image
+      repository in Snowflake in form of `<dbName>.<schemaName>.<repoName>`. If
+      following along the setup from SPCS [tutorials][tutorials], it is
+      `tutorial_db.data_schema.tutorial_repository`
     - `SNOWFLAKE_USER` : user to log into repository
     - `SNOWFLAKE_ACCOUNT` : Snowflake account identifier
     - `SNOWFLAKE_PRIVATE_KEY` : private key counterpart to public key used when
       creating dedicated CI/CD user
-3. Run the "Build docker archive and push it using skopeo" workflow
+4. Run the "Build docker archive and push it using skopeo" workflow
 
 More background is available in [this post][ci-cd].
 
@@ -175,3 +201,4 @@ A sample Debian-based image is provided in this repo.
 
 [ci-cd]:
 https://medium.com/@vladimir.timofeenko/snowpark-container-services-ci-cd-building-and-pushing-images-2109f54eaa99
+[tutorials]: https://docs.snowflake.com/en/developer-guide/snowpark-container-services/overview-tutorials
