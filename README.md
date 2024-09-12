@@ -99,6 +99,51 @@ machine).
    `SHOW ENDPOINTS IN SERVICE <serviceName>`)
 3. Open the `ttyd` endpoint URL
 
+# Creating the service
+
+```sql
+# If intending to run nix shells:
+USE ROLE ACCOUNTADMIN;
+CREATE NETWORK RULE nix_cache
+  TYPE = 'HOST_PORT'
+  MODE= 'EGRESS'
+  VALUE_LIST = ('api.github.com', 'codeload.github.com',
+                'github.com','cache.nixos.org', 'channels.nixos.org');
+
+CREATE EXTERNAL ACCESS INTEGRATION nix_cache_integration
+ALLOWED_NETWORK_RULES = (nix_cache)
+ENABLED = true;
+GRANT USAGE ON INTEGRATION nix_cache_integration TO ROLE <spcsServiceRole>;
+
+USE ROLE <spcsServiceRole>;
+CREATE SERVICE <srvName>
+IN COMPUTE POOL <computePoolName>
+EXTERNAL_ACCESS_INTEGRATIONS = (nix_cache_integration)
+FROM SPECIFICATION $$
+spec:
+     containers:
+       - name: spcs-ttyd
+         image: /<pathToImageInImageRepo>
+         command:
+           - "ttyd"
+           - "--port=8000"
+           - "--writable"
+           - "bash"
+         env:
+            PS1: "(webshell-1) bash: "
+         resources:
+            limits:
+              cpu: 0.3
+     endpoints:
+       - name: webshell-1
+         port: 8000
+         public: true
+     networkPolicyConfig:
+       allowInternetEgress: true
+   $$;
+
+```
+
 # Packages in the container
 
 The container comes with certain tools pre-installed (see the list in [package
