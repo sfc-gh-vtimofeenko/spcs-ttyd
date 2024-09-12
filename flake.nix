@@ -70,9 +70,12 @@
           };
         in
         {
-          packages.ttydContainer = import ./packages/ttydContainer/package.nix {
-            targetPkgs = spcsTargetPkgs;
-            inherit self;
+          packages = rec {
+            ttydContainer = import ./packages/ttydContainer/package.nix {
+              targetPkgs = spcsTargetPkgs;
+              inherit self;
+            };
+            default = ttydContainer;
           };
           apps.buildAndPushToSpcs = import ./apps/buildAndPushToSpcs { inherit pkgs; };
 
