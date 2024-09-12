@@ -56,7 +56,7 @@ jobs:
           SKOPEO_CMD="nix develop .#default --command skopeo"
           snow spcs image-registry token --format=JSON | $SKOPEO_CMD login "${{ secrets.REGISTRY_URL }}" --username 0sessiontoken --password-stdin
 
-          TAG="${{ secrets.REGISTRY_URL }}/${{ env.IMAGE_TAG }}-archive-skopeo:${{ github.sha }}"
+          TAG="${{ secrets.REGISTRY_URL }}/${{ env.IMAGE_TAG }}-archive-skopeo:latest"
           $SKOPEO_CMD copy \
               --additional-tag "$TAG" \
               --insecure-policy `#otherwise fails loading policy.json `\
