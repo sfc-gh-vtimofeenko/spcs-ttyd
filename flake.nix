@@ -123,7 +123,7 @@
           devshells.default = {
             env = [ ];
             commands = [ ];
-            packages = builtins.attrValues { inherit (pkgs) jc jq; };
+            packages = builtins.attrValues { inherit (pkgs) jc jq skopeo; };
           };
         };
 
