@@ -21,18 +21,22 @@ tutorial to have the image repository and a compute pool in your account.
 
 ## With Github actions
 
-1. Fork/clone this repository in your Github account
-2. In your copy of this repository add action secrets (repository Settings >
-   Secrets and variables > Actions):
+Short version:
 
-    - `REGISTRY_URL`:
-      `<snowflakeOrg-snowflakeAccount>.registry.snowflakecomputing.com/<database>/<schema>/<registry_name>`.
-      See output of `SHOW IMAGE REPOSITORIES` for exact value
-    - `SNOWFLAKE_USER`: username of Snowflake user that has access to the image
-      repository
-    - `SNOWFLAKE_PASSWORD`: password for `SNOWFLAKE_USER`
+1. Clone/copy this repository
+2. Set up GitHub secrets for
+    - `REGISTRY_URL` : value can be obtained by running DESC IMAGE REPOSITORY
+      `<path>` SQL statement in Snowflake. `<path>` refers to the path to the image
+      repository in Snowflake in form of `<database>.<schema>.<imageRepo>`. If
+      following along the setup from tutorials, it is
+      tutorial_db.data_schema.tutorial_repository
+    - `SNOWFLAKE_USER` : user to log into repository
+    - `SNOWFLAKE_ACCOUNT` : Snowflake account identifier
+    - `SNOWFLAKE_PRIVATE_KEY` : private key counterpart to public key used when
+      creating dedicated CI/CD user
+3. Run the "Build docker archive and push it using skopeo" workflow
 
-3. Run "Build and push image to Snowflake" action for the chosen image
+More background is available in [this post][ci-cd].
 
 ## Without Github actions
 
@@ -125,3 +129,6 @@ The main mechanism through which the shell is displayed in the browser is
 image.
 
 A sample Debian-based image is provided in this repo.
+
+[ci-cd]:
+https://medium.com/@vladimir.timofeenko/snowpark-container-services-ci-cd-building-and-pushing-images-2109f54eaa99
