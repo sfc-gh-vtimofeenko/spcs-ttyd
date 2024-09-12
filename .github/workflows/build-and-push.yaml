@@ -1,19 +1,65 @@
+# Source:
+# https://github.com/sfc-gh-vtimofeenko/spcs-ci-cd
 ---
-name: Build and push small image to Snowflake
+name: Build docker archive and push it using skopeo
 
 # yamllint disable-line rule:truthy
 on:
-  workflow_dispatch:  # Run manually only
+  workflow_dispatch:  # Only run manually
 
 jobs:
-  build:
-    runs-on: ubuntu-22.04
+  build-and-push:
+    runs-on: ubuntu-latest
+    env:
+      SNOWFLAKE_AUTHENTICATOR: SNOWFLAKE_JWT
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_PRIVATE_KEY_PATH: /home/runner/work/key.p8
+      IMAGE_TAG: spcs-ci-cd
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Mask repo-related values in Github logs
+        # REGISTRY_URL can be retrieved by DESC IMAGE REPOSITORY <PATH>
+        run: |
+          IFS='/' read -ra URL_PARTS <<< "${{ secrets.REGISTRY_URL }}"
+          for i in "${URL_PARTS[@]}"; do
+             echo "::add-mask::$i"
+          done
+
+      - uses: actions/checkout@v4
+
       - uses: DeterminateSystems/nix-installer-action@main
+
+      # NOTE: nix cache action collects telemetry
+      # See https://github.com/DeterminateSystems/magic-nix-cache
       - uses: DeterminateSystems/magic-nix-cache-action@main
-      - run: nix run .#buildAndPushToSpcs -- "ttydContainer"
-        env:
-          REGISTRY_URL: ${{ secrets.REGISTRY_URL }}
-          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
-          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+
+      - uses: Snowflake-Labs/snowflake-cli-action@v1.2
+        with:
+          cli-version: "latest"
+          default-config-file-path: "config.toml"
+
+      - name: Build image (produce docker archive file)
+        run: |
+          nix build -o out .#default
+
+      - name: Set up key
+        run: |
+          cat <<EOF > ${{ env.SNOWFLAKE_PRIVATE_KEY_PATH }}
+          ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+          EOF
+
+      - name: Push image using skopeo
+        # yamllint disable rule:line-length
+        run: |
+          # Default version of skopeo is too old, using version frm dev shell
+          SKOPEO_CMD="nix develop .#default --command skopeo"
+          snow spcs image-registry token --format=JSON | $SKOPEO_CMD login "${{ secrets.REGISTRY_URL }}" --username 0sessiontoken --password-stdin
+
+          TAG="${{ secrets.REGISTRY_URL }}/${{ env.IMAGE_TAG }}-archive-skopeo:${{ github.sha }}"
+          $SKOPEO_CMD copy \
+              --additional-tag "$TAG" \
+              --insecure-policy `#otherwise fails loading policy.json `\
+              docker-archive:out \
+              docker://"$TAG"
+        # yamllint enable rule:line-length
