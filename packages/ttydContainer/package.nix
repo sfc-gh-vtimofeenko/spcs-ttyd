@@ -60,7 +60,6 @@ let
         moreutils
         caddy
         unixODBC
-
         ;
     })
   ++ [
