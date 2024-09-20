@@ -75,6 +75,9 @@
               targetPkgs = spcsTargetPkgs;
               inherit self;
             };
+            snowflake-odbc = pkgs.callPackage ./packages/snowflake-odbc/package.nix {
+              inherit (pkgs) fetchurl stdenv;
+            };
             default = ttydContainer;
           };
           apps.buildAndPushToSpcs = import ./apps/buildAndPushToSpcs { inherit pkgs; };
@@ -123,7 +126,14 @@
           devshells.default = {
             env = [ ];
             commands = [ ];
-            packages = builtins.attrValues { inherit (pkgs) jc jq skopeo act; };
+            packages = builtins.attrValues {
+              inherit (pkgs)
+                jc
+                jq
+                skopeo
+                act
+                ;
+            };
           };
         };
     };
