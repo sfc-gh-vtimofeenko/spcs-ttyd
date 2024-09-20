@@ -3,6 +3,8 @@
 let
   pkgs = targetPkgs;
 
+  snowflakeODBC = self.packages.${pkgs.system}.snowflake-odbc;
+
   nixConfig = pkgs.stdenv.mkDerivation {
     name = "nix-conf";
     src = ./.;
@@ -15,6 +17,25 @@ let
       mkdir -p $out/etc/nix
       cat <<EOF >$out/etc/nix/nix.conf
       experimental-features = nix-command flakes
+      EOF
+    '';
+  };
+
+  createODBCini = pkgs.writeShellApplication {
+    name = "create-odbc-ini";
+
+    runtimeInputs = [ pkgs.coreutils-full ];
+
+    text = ''
+      cat <<EOF >/etc/odbc.ini
+      [ODBC Data Sources]
+      snowodbc = SnowflakeDSIIDriver
+
+      [snowodbc]
+      Driver      = ${snowflakeODBC}/lib/libSnowflake.so
+      Description =
+      server      = $SNOWFLAKE_HOST
+      role        = PUBLIC
       EOF
     '';
   };
@@ -38,9 +59,14 @@ let
         snowsql
         moreutils
         caddy
+        unixODBC
+
         ;
     })
-  ++ [ nixConfig ];
+  ++ [
+    nixConfig
+    createODBCini
+  ];
 in
 pkgs.dockerTools.buildImage {
   name = "ttyd-container";
@@ -66,6 +92,20 @@ pkgs.dockerTools.buildImage {
     ${pkgs.dockerTools.shadowSetup}
     groupadd -r nixbld
     for n in $(seq 1 10); do useradd -c "Nix build user $n" -d /var/empty -g nixbld -G nixbld -M -N -r -s "$(command -v nologin)" "nixbld$n"; done
+
+    # environment.etc
+    cat <<EOF >/etc/odbcinst.ini
+    [ODBC Drivers]
+    SnowflakeDSIIDriver=Installed
+
+    [SnowflakeDSIIDriver]
+    APILevel=1
+    ConnectFunctions=YYY
+    Description=Snowflake DSII
+    Driver=${snowflakeODBC}/lib/libSnowflake.so
+    DriverODBCVer=03.52
+    SQLLevel=1
+    EOF
   '';
 
   architecture = "amd64";
