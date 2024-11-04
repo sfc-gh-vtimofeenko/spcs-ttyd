@@ -34,7 +34,7 @@ jobs:
       # See https://github.com/DeterminateSystems/magic-nix-cache
       - uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - uses: Snowflake-Labs/snowflake-cli-action@v1.2
+      - uses: Snowflake-Labs/snowflake-cli-action@v1.5
         with:
           cli-version: "latest"
           default-config-file-path: "config.toml"
