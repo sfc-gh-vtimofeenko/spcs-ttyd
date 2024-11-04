@@ -3,8 +3,6 @@
 let
   pkgs = targetPkgs;
 
-  snowflakeODBC = self.packages.${pkgs.system}.snowflake-odbc;
-
   nixConfig = pkgs.stdenv.mkDerivation {
     name = "nix-conf";
     src = ./.;
@@ -20,49 +18,6 @@ let
       EOF
     '';
   };
-
-  createODBCini = pkgs.writeShellApplication {
-    name = "create-odbc-ini";
-
-    runtimeInputs = [ pkgs.coreutils-full ];
-
-    text = ''
-      cat <<EOF >./odbc.ini
-      [ODBC Data  Sources]
-      SnowflakeDSII = Snowflake
-
-      [SnowflakeDSII]
-      SERVER = ''${SNOWFLAKE_HOST}
-      ACCOUNT = ''${SNOWFLAKE_ACCOUNT}
-      Port = 443
-      SSL = on
-      EOF
-
-      export ODBCINI=$(realpath ./odbc.ini)
-    '';
-  };
-
-  sampleRScript = pkgs.writeTextDir "sample.R"
-  # R
-  ''
-    library(DBI)
-    library(dplyr)
-    library(dbplyr)
-    library(odbc)
-
-    # Read the access token from file system
-    token <- readLines('/snowflake/session/token')
-
-    sfConn <- DBI::dbConnect(odbc::odbc(), "SnowflakeDSII",
-                             authenticator="OAUTH",
-                             token = token,
-                             warehouse = "ADHOC",
-                             database = "PUBLIC",
-                             schema = "PUBLIC")
-
-    data <- DBI::dbGetQuery(sfConn, "SELECT * FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOMER LIMIT 5")
-    head(data)
-  '';
 
   commonPackages =
     (builtins.attrValues {
