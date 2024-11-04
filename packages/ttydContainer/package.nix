@@ -24,15 +24,15 @@ let
       inherit (pkgs)
         coreutils-full
         nix
-        bashInteractive # compared to standard bash this binds tab keys and has other QoL stuff. Needed for proper /bin/bash binary
-        bash-completion # Shell experience is better
-        vim-full # Some editor
-        jq # Parsing JSON
-        netcat # Allows bringing up servers
-        curl # Curl
-        ttyd # webshell
-        inetutils # Telnet
-        htop # Some monitoring
+        bashInteractive# compared to standard bash this binds tab keys and has other QoL stuff. Needed for proper /bin/bash binary
+        bash-completion# Shell experience is better
+        vim-full# Some editor
+        jq# Parsing JSON
+        netcat# Allows bringing up servers
+        curl# Curl
+        ttyd# webshell
+        inetutils# Telnet
+        htop# Some monitoring
         gnugrep
         snowcli-2x
         snowsql
@@ -43,7 +43,6 @@ let
     })
     ++ [
       nixConfig
-      createODBCini
     ];
 in
 pkgs.dockerTools.buildImage {
