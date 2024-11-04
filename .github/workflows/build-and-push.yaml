@@ -15,7 +15,7 @@ jobs:
       SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
       SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
       SNOWFLAKE_PRIVATE_KEY_PATH: /home/runner/work/key.p8
-      IMAGE_TAG: spcs-ci-cd
+      IMAGE_TAG: nix-ttyd-container
 
     steps:
       - name: Mask repo-related values in Github logs
