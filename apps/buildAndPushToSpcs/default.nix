@@ -8,7 +8,7 @@
       # In GH actions it can be done through variables/secrets.
       set -x
 
-      export FULL_TAG="$REGISTRY_URL/nix-''${1}:latest"
+      export FULL_TAG="$REGISTRY_URL/$IMAGE_TAG:latest"
       export REGISTRY_AUTH_FILE="/tmp/auth.json" # W/a for skopeo auth file, see https://github.com/containers/image/issues/1097
       IMAGE="target/nixBuiltImage" # Temporary build location
 
@@ -16,7 +16,8 @@
 
       # Disable logging sensitive information
       set +x
-      skopeo login "$REGISTRY_URL" -u "$SNOWFLAKE_USER" -p "$SNOWFLAKE_PASSWORD"
+      # This uses keypair auth
+      snow spcs image-registry token --format=JSON | skopeo login "$REGISTRY_URL" --username 0sessiontoken --password-stdin
       set -x
 
       cat ''${IMAGE} | skopeo copy \
