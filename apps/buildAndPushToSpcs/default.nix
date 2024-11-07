@@ -3,9 +3,11 @@
   program = pkgs.writeShellApplication {
     name = "buildAndPushToSpcs";
     runtimeInputs = [ pkgs.skopeo ];
+    # Needs from environment:
+    # * IMAGE_TAG
+    # * REGISTRY_URL
+    # * snowcli config capable of creating an spcs token
     text = ''
-      # REGISTRY_URL, SNOWFLAKE_USER, SNOWFLAKE_PASSWORD need to be provided from the environment.
-      # In GH actions it can be done through variables/secrets.
       set -x
 
       export FULL_TAG="$REGISTRY_URL/$IMAGE_TAG:latest"
