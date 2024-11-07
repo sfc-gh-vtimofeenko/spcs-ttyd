@@ -80,7 +80,11 @@
             };
             default = ttydContainer;
           };
-          apps.buildAndPushToSpcs = import ./apps/buildAndPushToSpcs { inherit pkgs; };
+
+          apps = {
+            buildAndPushToSpcs = import ./apps/buildAndPushToSpcs { inherit pkgs; };
+            mkService = import ./apps/mkService.nix { inherit pkgs; };
+          };
 
           # Development configuration
           treefmt = {
