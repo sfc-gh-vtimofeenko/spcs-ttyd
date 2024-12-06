@@ -26,6 +26,7 @@ let
         nix
         bashInteractive# compared to standard bash this binds tab keys and has other QoL stuff. Needed for proper /bin/bash binary
         bash-completion# Shell experience is better
+        git# I find myself installing this all the time
         vim-full# Some editor
         jq# Parsing JSON
         netcat# Allows bringing up servers
