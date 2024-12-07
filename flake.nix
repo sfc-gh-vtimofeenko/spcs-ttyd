@@ -6,20 +6,6 @@
     nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-24.11";
     nixpkgs.follows = "nixpkgs-stable";
 
-    snowcli = {
-      url = "github:sfc-gh-vtimofeenko/snowcli-nix-flake";
-
-      inputs = {
-        nixpkgs-unstable.follows = "nixpkgs-unstable";
-        nixpkgs-stable.follows = "nixpkgs-stable";
-        nixpkgs.follows = "nixpkgs";
-        # development
-        devshell.follows = "devshell";
-        pre-commit-hooks-nix.follows = "pre-commit-hooks-nix";
-        treefmt-nix.follows = "treefmt-nix";
-      };
-    };
-
     devshell = {
       url = "github:numtide/devshell";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
@@ -65,7 +51,6 @@
           spcsTargetSystem = "x86_64-linux";
           spcsTargetPkgs = import inputs.nixpkgs {
             system = spcsTargetSystem;
-            overlays = [ inputs.snowcli.overlays.default ];
             config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "snowsql" ];
           };
         in

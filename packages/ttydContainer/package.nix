@@ -35,7 +35,7 @@ let
         inetutils# Telnet
         htop# Some monitoring
         gnugrep
-        snowcli-2x
+        snowflake-cli
         snowsql
         moreutils
         caddy
