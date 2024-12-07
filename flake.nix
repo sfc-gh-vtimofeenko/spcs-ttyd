@@ -121,8 +121,11 @@
               yamllint.enable = true;
               markdownlint = {
                 enable = true;
-                settings.configuration.MD041 = false;
-              }; # Disable "first line should be a heading check"
+                settings.configuration = {
+                  MD041 = false; # Disable "first line should be a heading check"
+                  MD013.code_blocks = false; # disable line length check in code blocks
+                };
+              };
             };
           };
 
