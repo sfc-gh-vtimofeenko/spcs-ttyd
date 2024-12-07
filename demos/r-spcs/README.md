@@ -44,14 +44,18 @@ head(data)
 
 # How this works
 
-* The flake provides a derivation for Snowflake ODBC driver (file [./snowflake-odbc-driver.nix])
+* The flake provides a derivation for Snowflake ODBC driver
+  ([file](./snowflake-odbc-driver.nix)) which is similar to a yum/deb/etc.
+  package but specific to nix
+* Nix development shell creates an isolated reproducible environment with the
+  specified packages (R+libs in this case)
 * When the nix dev shell is started, a `odbc.ini` file is constructed in the
-  local directory. This file:
+  local directory as a side effect. This file:
 
   * Points to the appropriate Snowflake ODBC driver's `.so` file in the nix
     store
-  * Pre-populates ODBC parameters by reading the env variables that SPCS sets
-    by default
+  * Pre-populates ODBC data source directives by reading the env variables that
+    SPCS sets by default (see call to envsubst in `flake.nix`)
 * Here's what a working `odbc.ini` looks like:
 
     ```ini
