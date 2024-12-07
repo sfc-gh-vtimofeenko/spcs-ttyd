@@ -32,6 +32,10 @@ con <- DBI::dbConnect(odbc::odbc()
                       , port = 443
                       , warehouse = "<virtual warehouse name>"
                       , ssl = 'on'
+                      # If you don't want to use the odbc.ini:
+                      # , driver = <path to libSnowflake.so>
+                      # , account = Sys.getenv("SNOWFLAKE_ACCOUNT")
+                      # , SERVER = Sys.getenv("SNOWFLAKE_HOST")
  )
 data <- DBI::dbGetQuery(con,"SELECT * FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOMER LIMIT 100")
 head(data)
