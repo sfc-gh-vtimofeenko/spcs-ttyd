@@ -12,7 +12,7 @@ connection using ODBC driver and OAUTH authentication that leverages SPCS token.
 
 # Usage
 
-Run following in bash:
+Run following in the container shell:
 
 ```shell
 nix develop "github:sfc-gh-vtimofeenko/spcs-ttyd?dir=demos"
