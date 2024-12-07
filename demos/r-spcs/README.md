@@ -37,6 +37,41 @@ data <- DBI::dbGetQuery(con,"SELECT * FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOM
 head(data)
 
 ```
+# How this works
+
+* The flake provides a derivation for Snowflake ODBC driver (file [./snowflake-odbc-driver.nix])
+* When the nix dev shell is started, a `odbc.ini` file is constructed in the
+  local directory. This file:
+    * Points to the appropriate Snowflake ODBC driver's `.so` file in the nix
+      store
+    * Pre-populates ODBC parameters by reading the env variables that SPCS sets
+      by default
+* Here's what a working `odbc.ini` looks like:
+
+    ```ini
+    [ODBC Data  Sources]
+    SnowflakeDSII = Snowflake
+
+    [SnowflakeDSII]
+    # This is populated from environment and is set by SPCS
+    SERVER = <REDACTED>
+    # This is populated from environment and is set by SPCS
+    account = <REDACTED>
+    Driver = /nix/store/...-snowflake-odbc-driver-3.5.0/lib/libSnowflake.so
+    Port = 443
+    SSL = on
+    Locale = en-US
+    Tracing = 0
+    # Oauth stuff
+    authenticator=OAUTH
+    # Optional; token may expire and should be read when connecting
+    token= <REDACTED>
+    ```
+* The dev shell sets the ODBCINI variable to point the user's DSN file to the
+  aforementioned `odbc.ini`
+* When R'd `DBI::dbConnect` is called, it's reading the user's DSN file
+* R's ODBC settings can be read by calling `library(odbc)` and then calling
+  `odbcShowConfig()`
 
 # Further reading
 
