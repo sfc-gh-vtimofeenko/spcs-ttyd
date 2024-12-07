@@ -33,7 +33,7 @@ con <- DBI::dbConnect(odbc::odbc()
                       , warehouse = "ADHOC"
                       , ssl = 'on'
  )
-data <- dbGetQuery(con,"SELECT * FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOMER LIMIT 100")
+data <- DBI::dbGetQuery(con,"SELECT * FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOMER LIMIT 100")
 head(data)
 
 ```
