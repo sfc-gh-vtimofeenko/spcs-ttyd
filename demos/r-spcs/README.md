@@ -10,7 +10,7 @@ connection using ODBC driver and OAUTH authentication that leverages SPCS token.
 2. `SNOWFLAKE_SAMPLE_DATA` setup in account
 3. A virtual warehouse accessible to the role that owns SPCS service
 
-# Result
+# Usage
 
 Run following in bash:
 
