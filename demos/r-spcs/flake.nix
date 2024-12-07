@@ -55,7 +55,7 @@
                   SERVER = ''${SNOWFLAKE_HOST}
                   # This is populated from environment and is set by SPCS
                   account = ''${SNOWFLAKE_ACCOUNT}
-                  Driver = ${self'.packages.snowflake-odbc-driver}
+                  Driver = ${self'.packages.snowflake-odbc-driver}/lib/libSnowflake.so
                   Port = 443
                   SSL = on
                   Locale = en-US
