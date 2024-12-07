@@ -30,7 +30,7 @@ con <- DBI::dbConnect(odbc::odbc()
                       , token = readLines("/snowflake/session/token", warn = FALSE)
                       , authenticator = 'oauth'
                       , port = 443
-                      , warehouse = "ADHOC"
+                      , warehouse = "<virtual warehouse name>"
                       , ssl = 'on'
  )
 data <- DBI::dbGetQuery(con,"SELECT * FROM SNOWFLAKE_SAMPLE_DATA.TPCH_SF1.CUSTOMER LIMIT 100")
