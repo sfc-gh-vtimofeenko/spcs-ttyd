@@ -15,7 +15,7 @@ connection using ODBC driver and OAUTH authentication that leverages SPCS token.
 Run following in the container shell:
 
 ```shell
-nix develop "github:sfc-gh-vtimofeenko/spcs-ttyd?dir=demos"
+nix develop "github:sfc-gh-vtimofeenko/spcs-ttyd?dir=demos/r-spcs"
 ```
 
 This will start a development shell with Snowflake ODBC driver and R REPL with
