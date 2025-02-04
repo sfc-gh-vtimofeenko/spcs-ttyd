@@ -148,7 +148,7 @@ EXTERNAL_ACCESS_INTEGRATIONS = (nix_cache_integration)
 FROM SPECIFICATION $$
 spec:
      containers:
-       - name: spcs-ttyd
+       - name: ttyd
          image: /<pathToImageInImageRepo>
          command:
            - "ttyd"
