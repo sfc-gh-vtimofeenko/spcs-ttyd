@@ -1,0 +1,61 @@
+
+#!/bin/env nix-shell
+#!nix-shell -i "uv run --script --quiet" -p uv
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "requests",
+# ]
+# ///
+import os
+import json
+import requests
+
+MODEL_PATH = "@CORTEX_ANALYST_DEMO.REVENUE_TIMESERIES.RAW_DATA/revenue_timeseries.yaml"  # FIXME: EDIT HERE
+SNOWFLAKE_HOST = os.getenv("SNOWFLAKE_HOST")
+SNOWFLAKE_ACCOUNT = os.getenv("SNOWFLAKE_ACCOUNT")
+ANALYST_ENDPOINT = "/api/v2/cortex/agent:run"
+
+# Construct account hostname to route through internal network
+URL = "https://" + SNOWFLAKE_HOST + ANALYST_ENDPOINT
+print(URL)
+
+def get_login_token():
+    """Fetches the SPCS OAuth token"""
+    with open("/snowflake/session/token", "r") as f:
+        return f.read()
+
+def send_request(semantic_model_file, prompt):
+    """Sends the prompt using the semantic model file """
+    headers = {
+        "Content-Type": "application/json",
+        "accept": "application/json",
+        "Authorization": f"Bearer {get_login_token()}",
+        "X-Snowflake-Authorization-Token-Type": "OAUTH"
+    }
+    # Can be whatever; but it must conform with
+    # https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-rest-api#sample-request
+    request_body = {
+        "model": "llama3.3-70b",
+        "messages": [
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": prompt}],
+            }
+        ],
+        "tools": [
+            {
+                "tool_spec": {
+                    "type": "cortex_analyst_text_to_sql",
+                    "name": "Analyst1",
+                },
+            }
+        ],
+        "tool_resources": {
+            "Analyst1": { "semantic_model_file": semantic_model_file, },
+        },
+    }
+    return requests.post(URL, headers=headers, data=json.dumps(request_body))
+
+# query with prompt
+print(send_request(MODEL_PATH, "what questions can I ask").text)
