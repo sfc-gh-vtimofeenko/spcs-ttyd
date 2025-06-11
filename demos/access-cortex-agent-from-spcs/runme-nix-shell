@@ -1,4 +1,3 @@
-
 #!/bin/env nix-shell
 #!nix-shell -i "uv run --script --quiet" -p uv
 # /// script
