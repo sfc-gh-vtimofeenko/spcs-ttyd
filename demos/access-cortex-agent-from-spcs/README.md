@@ -9,7 +9,6 @@ the container includes `python` and `uv`.
 The two versions of the script in this directory contain the same code, but [one][2]
 uses `nix shell` (suitable for flakes) and [the other][3] uses standard `nix-shell`.
 
-
 [1]: https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents-rest-api
 [2]: ./runme-nix-command
 [3]: ./runme-nix-shell
