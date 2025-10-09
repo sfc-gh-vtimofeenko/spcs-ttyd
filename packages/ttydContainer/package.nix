@@ -1,5 +1,5 @@
 # Produces container configurations to be consumed by the flake
-{ targetPkgs, self, ... }:
+{ targetPkgs, self, inputs, ... }:
 let
   pkgs = targetPkgs;
 
@@ -18,6 +18,9 @@ let
       EOF
     '';
   };
+
+  # Registry with pinned nixpkgs versions for faster nix shell execution
+  # nixRegistry = pkgs.callPackage (import ../registry/package.nix { inherit inputs; }) {inherit (pkgs) stdenv lib writeText;};
 
   commonPackages =
     (builtins.attrValues {

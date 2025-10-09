@@ -57,7 +57,7 @@
           packages = rec {
             ttydContainer = import ./packages/ttydContainer/package.nix {
               targetPkgs = spcsTargetPkgs;
-              inherit self;
+              inherit self inputs;
             };
             snowflake-odbc = pkgs.callPackage ./packages/snowflake-odbc/package.nix {
               inherit (pkgs) fetchurl stdenv;
