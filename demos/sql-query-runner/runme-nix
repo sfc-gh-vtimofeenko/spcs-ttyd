@@ -1,0 +1,647 @@
+#!/bin/env nix
+#!nix shell nixpkgs#uv nixpkgs#python3 --command uv run --script --no-python-downloads --no-managed-python
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#     "flask",
+#     "snowflake-connector-python",
+# ]
+# ///
+"""
+SQL Query Runner for Snowpark Container Services.
+
+A Flask web service that demonstrates running SQL queries as:
+1. Service owner (using /snowflake/session/token)
+2. Visiting user (using Sf-Context-Current-User-Token header with restricted caller's rights)
+
+NB: This is SQL injection as a service intended for demo purposes only. Do _not_ use in production.
+"""
+import os
+
+import snowflake.connector
+from flask import Flask, jsonify, render_template_string, request
+
+app = Flask(__name__)
+
+# Environment variables set by SPCS
+# Even if these succeed outside of spcs, `/snowflake/session/token` reading will fail later
+try:
+    SNOWFLAKE_HOST = os.environ["SNOWFLAKE_HOST"]
+    SNOWFLAKE_ACCOUNT = os.environ["SNOWFLAKE_ACCOUNT"]
+except KeyError as e:
+    print("Expected environment variable not found. Please make sure you're running this in SPCS.")
+    raise
+
+
+# Prepared queries for quick testing
+PREPARED_QUERIES = [
+    ("Current User", "SELECT CURRENT_USER()"),
+    ("Current Role", "SELECT CURRENT_ROLE()"),
+    ("Current Warehouse", "SELECT CURRENT_WAREHOUSE()"),
+    ("Current Database", "SELECT CURRENT_DATABASE()"),
+    ("Current Schema", "SELECT CURRENT_SCHEMA()"),
+    ("Session Info", "SELECT CURRENT_USER(), CURRENT_ROLE(), CURRENT_WAREHOUSE()"),
+]
+
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPCS SQL Query Runner</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #1a1a1a;
+            --bg-surface: #242424;
+            --bg-elevated: #2e2e2e;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --text-muted: #606060;
+            --border: #3a3a3a;
+            --error: #cf6679;
+            --owner: #cf6679;
+            --user: #6a9955;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+
+        .token-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-top: 0.75rem;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .token-status.available .status-dot {
+            background: #6a9955;
+        }
+
+        .token-status.unavailable .status-dot {
+            background: var(--error);
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 900px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-weight: 500;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .panel-body {
+            padding: 1rem;
+        }
+
+        .query-input {
+            width: 100%;
+            min-height: 150px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            resize: vertical;
+        }
+
+        .query-input:focus {
+            outline: none;
+            border-color: var(--text-muted);
+        }
+
+        .query-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .prepared-queries {
+            margin-top: 1rem;
+        }
+
+        .prepared-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .prepared-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+
+        .prepared-btn {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 0.3rem 0.6rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .prepared-btn:hover {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-top: 1.25rem;
+        }
+
+        .run-btn {
+            padding: 0.75rem 1rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            font-family: inherit;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.2rem;
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+        }
+
+        .run-btn .btn-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .run-btn:hover:not(:disabled) {
+            background: var(--border);
+        }
+
+        .run-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .run-btn.owner {
+            border-color: var(--owner);
+        }
+
+        .run-btn.user {
+            border-color: var(--user);
+        }
+
+        .run-btn.both {
+            grid-column: 1 / -1;
+            border: none;
+            background: 
+                linear-gradient(var(--bg-elevated), var(--bg-elevated)) padding-box,
+                linear-gradient(to right, var(--owner), var(--user)) border-box;
+            border: 1px solid transparent;
+        }
+
+        .run-btn.both:hover:not(:disabled) {
+            background: 
+                linear-gradient(var(--border), var(--border)) padding-box,
+                linear-gradient(to right, var(--owner), var(--user)) border-box;
+        }
+
+        .results-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .result-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .result-header {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .result-header.owner {
+            border-left: 3px solid var(--owner);
+        }
+
+        .result-header.user {
+            border-left: 3px solid var(--user);
+        }
+
+        .result-body {
+            padding: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            max-height: 300px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .result-body.error {
+            color: var(--error);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--border);
+            border-top-color: var(--text-secondary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        th, td {
+            padding: 0.4rem 0.6rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background: var(--bg-surface);
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>SPCS SQL Query Runner</h1>
+            <p class="subtitle">Execute SQL queries as service owner or visiting user</p>
+            <div class="token-status {{ 'available' if user_token_available else 'unavailable' }}">
+                <span class="status-dot"></span>
+                {% if user_token_available %}
+                    User token available — caller's rights enabled
+                {% else %}
+                    No user token — configure ingress with RCR to enable
+                {% endif %}
+            </div>
+        </header>
+
+        <div class="main-grid">
+            <div class="panel">
+                <div class="panel-header">
+                    Query Editor
+                </div>
+                <div class="panel-body">
+                    <textarea 
+                        id="query" 
+                        class="query-input" 
+                        placeholder="Enter your SQL query here..."
+                    >SELECT CURRENT_USER()</textarea>
+
+                    <div class="prepared-queries">
+                        <div class="prepared-label">Quick queries</div>
+                        <div class="prepared-grid">
+                            {% for name, sql in prepared_queries %}
+                            <button class="prepared-btn" onclick="setQuery('{{ sql }}')">{{ name }}</button>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button class="run-btn owner" onclick="runQuery('owner')">
+                            <span>Run as Owner</span>
+                            <span class="btn-label">Service Token</span>
+                        </button>
+                        <button 
+                            class="run-btn user" 
+                            onclick="runQuery('user')"
+                            {{ 'disabled' if not user_token_available }}
+                            {% if not user_token_available %}
+                            title="User token not available. Configure ingress with caller's rights."
+                            {% endif %}
+                        >
+                            <span>Run as User</span>
+                            <span class="btn-label">{{ 'Restricted Caller Rights' if user_token_available else 'No Token' }}</span>
+                        </button>
+                        <button 
+                            class="run-btn both" 
+                            onclick="runBoth()"
+                            {{ 'disabled' if not user_token_available }}
+                        >
+                            <span>Run as both</span>
+                            <span class="btn-label">Side-by-side</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    Results
+                </div>
+                <div class="panel-body">
+                    <div id="results" class="results-container">
+                        <div class="empty-state">
+                            <p>Run a query to see results</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function setQuery(sql) {
+            document.getElementById('query').value = sql;
+        }
+
+        function formatResult(data, mode) {
+            const modeLabel = mode === 'owner' ? 'Service Owner' : 'Visiting User';
+
+            if (data.error) {
+                return `
+                    <div class="result-card">
+                        <div class="result-header ${mode}">
+                            <span>${modeLabel}</span>
+                            <span>Error</span>
+                        </div>
+                        <div class="result-body error">${escapeHtml(data.error)}</div>
+                    </div>
+                `;
+            }
+
+            let content = '';
+            if (data.columns && data.rows) {
+                if (data.rows.length === 0) {
+                    content = '<em>Query returned no rows</em>';
+                } else {
+                    content = `<table>
+                        <thead><tr>${data.columns.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>
+                        <tbody>${data.rows.map(row => 
+                            `<tr>${row.map(cell => `<td>${escapeHtml(String(cell ?? 'NULL'))}</td>`).join('')}</tr>`
+                        ).join('')}</tbody>
+                    </table>`;
+                }
+            } else {
+                content = escapeHtml(JSON.stringify(data, null, 2));
+            }
+
+            return `
+                <div class="result-card">
+                    <div class="result-header ${mode}">
+                        <span>${modeLabel}</span>
+                        <span>${data.rows ? data.rows.length + ' row(s)' : ''}</span>
+                    </div>
+                    <div class="result-body">${content}</div>
+                </div>
+            `;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showLoading(mode) {
+            const modeLabel = mode === 'owner' ? 'Service Owner' : 'Visiting User';
+            return `
+                <div class="result-card">
+                    <div class="result-header ${mode}">
+                        <span>${modeLabel}</span>
+                        <span><span class="loading"></span></span>
+                    </div>
+                    <div class="result-body">Executing query...</div>
+                </div>
+            `;
+        }
+
+        async function runQuery(mode) {
+            const query = document.getElementById('query').value;
+            const resultsDiv = document.getElementById('results');
+
+            resultsDiv.innerHTML = showLoading(mode);
+
+            try {
+                const response = await fetch('/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, mode })
+                });
+                const data = await response.json();
+                resultsDiv.innerHTML = formatResult(data, mode);
+            } catch (err) {
+                resultsDiv.innerHTML = formatResult({ error: err.message }, mode);
+            }
+        }
+
+        async function runBoth() {
+            const query = document.getElementById('query').value;
+            const resultsDiv = document.getElementById('results');
+
+            resultsDiv.innerHTML = showLoading('owner') + showLoading('user');
+
+            try {
+                const [ownerRes, userRes] = await Promise.all([
+                    fetch('/execute', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query, mode: 'owner' })
+                    }).then(r => r.json()),
+                    fetch('/execute', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query, mode: 'user' })
+                    }).then(r => r.json())
+                ]);
+
+                resultsDiv.innerHTML = formatResult(ownerRes, 'owner') + formatResult(userRes, 'user');
+            } catch (err) {
+                resultsDiv.innerHTML = formatResult({ error: err.message }, 'owner');
+            }
+        }
+    </script>
+</body>
+</html>
+"""  # noqa: E501
+
+
+def get_service_token():
+    """Read the SPCS service owner OAuth token."""
+    try:
+        with open("/snowflake/session/token", "r") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return None
+
+
+def get_user_token_from_request():
+    """Extract user token from request headers."""
+    return request.headers.get("Sf-Context-Current-User-Token")
+
+
+def execute_query(query: str, token: str) -> dict:
+    """Execute a SQL query against Snowflake using the provided token."""
+    try:
+        with snowflake.connector.connect(
+            account=SNOWFLAKE_ACCOUNT,
+            host=SNOWFLAKE_HOST,
+            authenticator="oauth",
+            token=token,
+        ) as conn, conn.cursor() as cursor:
+            cursor.execute(query)
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            rows = cursor.fetchall()
+            return {"columns": columns, "rows": rows}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.route("/")
+def index():
+    """Render the main page."""
+    user_token = get_user_token_from_request()
+    return render_template_string(
+        HTML_TEMPLATE,
+        prepared_queries=PREPARED_QUERIES,
+        user_token_available=user_token is not None,
+    )
+
+
+@app.route("/execute", methods=["POST"])
+def execute():
+    """Execute a query in the specified mode."""
+    data = request.get_json()
+    if data is None:
+        return jsonify({"error": "Invalid or missing JSON body"})
+    query = data.get("query", "")
+    mode = data.get("mode", "owner")
+
+    if not query.strip():
+        return jsonify({"error": "Empty query"})
+
+    service_token = get_service_token()
+    if service_token is None:
+        return jsonify({"error": "Service token not available. Are you running in SPCS?"})
+
+    if mode == "owner":
+        token = service_token
+    else:
+        user_token = get_user_token_from_request()
+        if not user_token:
+            return jsonify(
+                {"error": "User token not available. Ensure that the service has executeAsCaller capability."}
+            )
+        # Combine tokens for caller's rights
+        token = f"{service_token}.{user_token}"
+
+    result = execute_query(query, token)
+    return jsonify(result)
+
+
+@app.route("/health")
+def health():
+    """Health check endpoint."""
+    return jsonify({"status": "healthy"})
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("FLASK_RUN_PORT", "8000"))
+    app.run(host="0.0.0.0", port=port, debug=False)
+
+# vim: ft=python
