@@ -38,9 +38,10 @@
       ];
 
       perSystem =
-        { config
-        , pkgs
-        , # These inputs are unused in the template, but might be useful later
+        {
+          config,
+          pkgs,
+          # These inputs are unused in the template, but might be useful later
           # , self'
           # , inputs'
           # , system
