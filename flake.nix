@@ -62,6 +62,13 @@
             snowflake-odbc = pkgs.callPackage ./packages/snowflake-odbc/package.nix {
               inherit (pkgs) fetchurl stdenv;
             };
+            demoRunSQLas = pkgs.writeShellApplication {
+              name = "run-sql-as";
+
+              runtimeInputs = [ ];
+
+              text = builtins.readFile ./demos/sql-query-runner/runme-nix;
+            };
             default = ttydContainer;
           };
 
