@@ -1,4 +1,4 @@
-> [!WARNING]  
+> [!WARNING]
 > This service exists for illustration purposes only. It exposes a console to
 > run SQL and is prone to SQL injection. Do not run it in production or under a
 > role that may have access to non-demo data.
