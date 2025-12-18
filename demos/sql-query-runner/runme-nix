@@ -4,6 +4,7 @@
 # requires-python = ">=3.12"
 # dependencies = [
 #     "flask",
+#     "toolz",
 #     "snowflake-connector-python",
 # ]
 # ///
@@ -20,6 +21,8 @@ import os
 
 import snowflake.connector
 from flask import Flask, jsonify, render_template_string, request
+from toolz import excepts, pipe
+from toolz.curried import map as cmap
 
 app = Flask(__name__)
 
@@ -640,8 +643,30 @@ def health():
     return jsonify({"status": "healthy"})
 
 
+def _get_own_endpoint(service_port) -> str:
+    """Call to get own endpoint address."""
+    print("Retrieving the service URL")
+    return pipe(
+        ("SNOWFLAKE_DATABASE", "SNOWFLAKE_SCHEMA", "SNOWFLAKE_SERVICE_NAME"),
+        cmap(lambda it: os.environ[it]),
+        lambda it: str.format(
+            'SHOW ENDPOINTS IN SERVICE {}.{}.{} ->> SELECT "ingress_url" FROM $1 WHERE "port" = {}', *it, service_port
+        ),
+        lambda it: execute_query(query=it, token=get_service_token()),
+        # Construct the https:// URL, IndexError will have the function return None
+        excepts(IndexError, lambda it: "https://" + it["rows"][0][0]),
+    )
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("FLASK_RUN_PORT", "8000"))
+
+    own_endpoint = _get_own_endpoint(port)
+    if own_endpoint is None:
+        print("Could not find this service's endpoint, double check the port")
+    else:
+        print(own_endpoint)
+
     app.run(host="0.0.0.0", port=port, debug=False)
 
 # vim: ft=python

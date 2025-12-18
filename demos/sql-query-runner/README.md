@@ -34,6 +34,8 @@ The service listens on port 8000 by default. Set `FLASK_RUN_PORT` to override:
 FLASK_RUN_PORT=9000 ./runme-nix
 ```
 
+When the service starts, it will print its own URL by running a query.
+
 ## Configuration
 
 For the "Run as User" functionality to work, you need to configure the service
