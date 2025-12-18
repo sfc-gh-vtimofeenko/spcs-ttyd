@@ -11,6 +11,9 @@ in SPCS with different authentication contexts:
 2. **Visiting User** – Uses restricted caller's rights by combining the service
    token with the user token from `Sf-Context-Current-User-Token` header
 
+
+![main ui](./.assets/sql-runner-ui.png "Main ui")
+
 ## Features
 
 - Web UI with SQL query editor
