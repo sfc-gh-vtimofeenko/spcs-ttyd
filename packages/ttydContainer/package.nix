@@ -40,6 +40,8 @@ let
         moreutils
         caddy
         unixODBC
+        uv
+        python3
         ;
     })
     ++ [
