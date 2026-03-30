@@ -1,0 +1,4 @@
+{
+  "description": "Interactive R with Snowflake ODBC in a nix dev shell",
+  "run": "nix develop 'github:sfc-gh-vtimofeenko/spcs-ttyd?dir=demos/r-spcs'"
+}

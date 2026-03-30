@@ -3,6 +3,33 @@
 let
   pkgs = targetPkgs;
 
+  # Copy demos into the image at /opt/demos
+  demos = pkgs.stdenv.mkDerivation {
+    name = "demos";
+    src = builtins.path {
+      path = ../../demos;
+      name = "demos-src";
+      filter =
+        path: type:
+        let
+          baseName = builtins.baseNameOf path;
+        in
+        baseName != ".DS_Store";
+    };
+
+    dontBuild = true;
+
+    installPhase = ''
+      mkdir -p $out/opt/demos
+      cp -r ./* $out/opt/demos/
+    '';
+  };
+
+  demoMenu = import ./demo-menu.nix {
+    inherit pkgs;
+    demosPath = "/opt/demos";
+  };
+
   nixConfig = pkgs.stdenv.mkDerivation {
     name = "nix-conf";
     src = ./.;
@@ -42,10 +69,13 @@ let
         unixODBC
         uv
         python3
+        gum# TUI for demo menu
         ;
     })
     ++ [
       nixConfig
+      demos
+      demoMenu
     ];
 in
 pkgs.dockerTools.buildImage {
@@ -58,6 +88,7 @@ pkgs.dockerTools.buildImage {
       "/bin"
       "/etc"
       "/var"
+      "/opt"
     ];
     paths =
       (builtins.attrValues {

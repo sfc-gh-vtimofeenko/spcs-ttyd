@@ -1,0 +1,4 @@
+{
+  "description": "Call Cortex Agent REST API from SPCS using Python",
+  "run": "./runme-nix-command"
+}

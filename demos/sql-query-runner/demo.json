@@ -1,0 +1,4 @@
+{
+  "description": "Flask web UI to run SQL as service owner or visiting user",
+  "run": "./runme-nix"
+}

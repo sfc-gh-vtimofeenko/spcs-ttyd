@@ -1,0 +1,4 @@
+{
+  "description": "Use pre-installed Snowflake CLI with SPCS OAuth token",
+  "run": "cat README.md"
+}
