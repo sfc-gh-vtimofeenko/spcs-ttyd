@@ -11,7 +11,6 @@ in SPCS with different authentication contexts:
 2. **Visiting User** – Uses restricted caller's rights by combining the service
    token with the user token from `Sf-Context-Current-User-Token` header
 
-
 ![main ui](./.assets/sql-runner-ui.png "Main ui")
 
 ## Features
@@ -45,4 +44,3 @@ For the "Run as User" functionality to work, you need to configure the service
 with caller's rights. See [Snowflake documentation on configuring caller's rights][1].
 
 [1]: https://docs.snowflake.com/en/developer-guide/snowpark-container-services/additional-considerations-services-jobs#label-spcs-callers-rights
-
