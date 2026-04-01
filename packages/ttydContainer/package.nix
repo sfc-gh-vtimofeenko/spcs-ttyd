@@ -10,7 +10,7 @@ let
       path = ../../demos;
       name = "demos-src";
       filter =
-        path: type:
+        path: _type:
         let
           baseName = builtins.baseNameOf path;
         in
