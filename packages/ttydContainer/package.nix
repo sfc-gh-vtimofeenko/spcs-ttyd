@@ -30,7 +30,9 @@ let
     demosPath = "/opt/demos";
   };
 
-  snowflake-cli = pkgs.snowflake-cli.overrideAttrs (_: { doCheck = false; });
+  snowflake-cli = pkgs.snowflake-cli.overrideAttrs (_: {
+    doCheck = false;
+  });
 
   nixConfig = pkgs.stdenv.mkDerivation {
     name = "nix-conf";
@@ -53,16 +55,16 @@ let
       inherit (pkgs)
         coreutils-full
         nix
-        bashInteractive# compared to standard bash this binds tab keys and has other QoL stuff. Needed for proper /bin/bash binary
-        bash-completion# Shell experience is better
-        git# I find myself installing this all the time
-        vim-full# Some editor
-        jq# Parsing JSON
-        netcat# Allows bringing up servers
-        curl# Curl
-        ttyd# webshell
-        inetutils# Telnet
-        htop# Some monitoring
+        bashInteractive # compared to standard bash this binds tab keys and has other QoL stuff. Needed for proper /bin/bash binary
+        bash-completion # Shell experience is better
+        git # I find myself installing this all the time
+        vim-full # Some editor
+        jq # Parsing JSON
+        netcat # Allows bringing up servers
+        curl # Curl
+        ttyd # webshell
+        inetutils # Telnet
+        htop # Some monitoring
         gnugrep
         snowsql
         moreutils
@@ -70,7 +72,7 @@ let
         unixODBC
         uv
         python3
-        gum# TUI for demo menu
+        gum # TUI for demo menu
         ;
     })
     ++ [

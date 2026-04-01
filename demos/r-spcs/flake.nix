@@ -14,9 +14,10 @@
         "aarch64-linux"
       ];
       perSystem =
-        { self'
-        , pkgs
-        , ...
+        {
+          self',
+          pkgs,
+          ...
         }:
         {
           packages = rec {

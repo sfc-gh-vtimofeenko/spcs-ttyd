@@ -1,9 +1,9 @@
-{ stdenv
-, lib
-, unixODBC
-, openssl
-, fetchurl
-,
+{
+  stdenv,
+  lib,
+  unixODBC,
+  openssl,
+  fetchurl,
 }:
 let
   version = "3.5.0";

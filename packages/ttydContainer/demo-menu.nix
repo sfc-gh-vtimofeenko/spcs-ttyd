@@ -2,7 +2,12 @@
 { pkgs, demosPath }:
 let
   runtimeDeps = builtins.attrValues {
-    inherit (pkgs) gum jq coreutils bashInteractive;
+    inherit (pkgs)
+      gum
+      jq
+      coreutils
+      bashInteractive
+      ;
   };
 in
 pkgs.writeShellApplication {
