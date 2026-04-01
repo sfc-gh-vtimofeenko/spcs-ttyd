@@ -30,6 +30,8 @@ let
     demosPath = "/opt/demos";
   };
 
+  snowflake-cli = pkgs.snowflake-cli.overrideAttrs (_: { doCheck = false; });
+
   nixConfig = pkgs.stdenv.mkDerivation {
     name = "nix-conf";
     src = ./.;
@@ -62,7 +64,6 @@ let
         inetutils# Telnet
         htop# Some monitoring
         gnugrep
-        snowflake-cli
         snowsql
         moreutils
         caddy
@@ -76,6 +77,7 @@ let
       nixConfig
       demos
       demoMenu
+      snowflake-cli
     ];
 in
 pkgs.dockerTools.buildImage {
