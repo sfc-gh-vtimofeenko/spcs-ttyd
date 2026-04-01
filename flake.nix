@@ -81,7 +81,7 @@
           # Development configuration
           treefmt = {
             programs = {
-              nixpkgs-fmt.enable = true;
+              nixfmt.enable = true;
               deadnix = {
                 enable = true;
                 no-lambda-arg = true;
