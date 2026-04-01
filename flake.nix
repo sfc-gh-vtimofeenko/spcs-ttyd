@@ -60,9 +60,6 @@
               targetPkgs = spcsTargetPkgs;
               inherit self;
             };
-            snowflake-odbc = pkgs.callPackage ./packages/snowflake-odbc/package.nix {
-              inherit (pkgs) fetchurl stdenv;
-            };
             demoRunSQLas = pkgs.writeShellApplication {
               name = "run-sql-as";
 
@@ -71,6 +68,11 @@
               text = builtins.readFile ./demos/sql-query-runner/runme-nix;
             };
             default = ttydContainer;
+          }
+          // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+            snowflake-odbc = pkgs.callPackage ./packages/snowflake-odbc/package.nix {
+              inherit (pkgs) fetchurl stdenv;
+            };
           };
 
           apps = {

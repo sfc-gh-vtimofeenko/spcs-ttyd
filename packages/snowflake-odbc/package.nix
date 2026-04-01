@@ -45,4 +45,8 @@ stdenv.mkDerivation {
     fancyName = "SnowflakeDSIIDriver";
     driver = "lib/libSnowflake.so";
   };
+
+  meta = {
+    platforms = lib.platforms.linux;
+  };
 }
