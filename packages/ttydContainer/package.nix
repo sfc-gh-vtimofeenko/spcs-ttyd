@@ -30,7 +30,7 @@ let
     demosPath = "/opt/demos";
   };
 
-  snowflake-cli = pkgs.snowflake-cli.overrideAttrs (_: {
+  snowflake-cli = pkgs.snowflake-cli.overridePythonAttrs (_: {
     doCheck = false;
   });
 
