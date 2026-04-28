@@ -78,6 +78,7 @@
           apps = {
             buildAndPushToSpcs = import ./apps/buildAndPushToSpcs { inherit pkgs; };
             mkService = import ./apps/mkService.nix { inherit pkgs; };
+            pushArchiveToSpcs = import ./apps/pushArchiveToSpcs.nix { inherit pkgs; };
           };
 
           # Development configuration
