@@ -1,0 +1,6 @@
+#!/bin/env nix
+#!nix shell nixpkgs#mitmproxy --command bash
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec mitmproxy \
+    --listen-port "${LISTEN_PORT:-8080}" \
+    -s "${SCRIPT_DIR}/spcs.py"

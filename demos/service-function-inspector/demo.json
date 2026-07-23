@@ -1,0 +1,4 @@
+{
+  "description": "mitmproxy addon that illustrates every CREATE FUNCTION (SPCS) parameter",
+  "run": "./runme-nix"
+}
