@@ -326,6 +326,22 @@ HTML_TEMPLATE = """
             color: var(--error);
         }
 
+        .statement-block {
+            border-top: 1px solid var(--border);
+        }
+
+        .statement-block:first-of-type {
+            border-top: none;
+        }
+
+        .statement-label {
+            padding: 0.4rem 0.75rem 0;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
         .empty-state {
             text-align: center;
             padding: 2rem;
@@ -453,6 +469,24 @@ HTML_TEMPLATE = """
             document.getElementById('query').value = sql;
         }
 
+        function formatStatementBody(data) {
+            if (data.error) {
+                return `<div class="result-body error">${escapeHtml(data.error)}</div>`;
+            }
+            if (data.columns && data.rows) {
+                if (data.rows.length === 0) {
+                    return '<div class="result-body"><em>Query returned no rows</em></div>';
+                }
+                return `<div class="result-body"><table>
+                    <thead><tr>${data.columns.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>
+                    <tbody>${data.rows.map(row =>
+                        `<tr>${row.map(cell => `<td>${escapeHtml(String(cell ?? 'NULL'))}</td>`).join('')}</tr>`
+                    ).join('')}</tbody>
+                </table></div>`;
+            }
+            return `<div class="result-body">${escapeHtml(JSON.stringify(data, null, 2))}</div>`;
+        }
+
         function formatResult(data, mode) {
             const modeLabel = mode === 'owner' ? 'Service Owner' : 'Visiting User';
 
@@ -468,20 +502,23 @@ HTML_TEMPLATE = """
                 `;
             }
 
-            let content = '';
-            if (data.columns && data.rows) {
-                if (data.rows.length === 0) {
-                    content = '<em>Query returned no rows</em>';
-                } else {
-                    content = `<table>
-                        <thead><tr>${data.columns.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead>
-                        <tbody>${data.rows.map(row => 
-                            `<tr>${row.map(cell => `<td>${escapeHtml(String(cell ?? 'NULL'))}</td>`).join('')}</tr>`
-                        ).join('')}</tbody>
-                    </table>`;
-                }
-            } else {
-                content = escapeHtml(JSON.stringify(data, null, 2));
+            // Multiple ';'-separated statements: render one block per statement.
+            if (data.statements) {
+                const blocks = data.statements.map((stmt, i) => `
+                    <div class="statement-block">
+                        <div class="statement-label">#${i + 1}: ${escapeHtml(stmt.query || '')}</div>
+                        ${formatStatementBody(stmt)}
+                    </div>
+                `).join('');
+                return `
+                    <div class="result-card">
+                        <div class="result-header ${mode}">
+                            <span>${modeLabel}</span>
+                            <span>${data.statements.length} statement(s)</span>
+                        </div>
+                        ${blocks}
+                    </div>
+                `;
             }
 
             return `
@@ -490,7 +527,7 @@ HTML_TEMPLATE = """
                         <span>${modeLabel}</span>
                         <span>${data.rows ? data.rows.length + ' row(s)' : ''}</span>
                     </div>
-                    <div class="result-body">${content}</div>
+                    ${formatStatementBody(data)}
                 </div>
             `;
         }
@@ -579,18 +616,33 @@ def get_user_token_from_request():
 
 
 def execute_query(query: str, token: str) -> dict:
-    """Execute a SQL query against Snowflake using the provided token."""
+    """Execute one or more ';'-separated SQL statements against Snowflake using the provided token.
+
+    Opens a fresh connection per call, like a normal application request: all
+    statements in this one call share that connection's session, so `SET x = 1;
+    SELECT $x;` behaves as expected, but nothing persists to the next call.
+    Statements run in order via execute_string(), stopping at the first error
+    (standard SQL script semantics) so it's clear exactly which statement a
+    permission difference hit. A single statement keeps the old flat
+    {columns, rows} shape; multiple statements are returned as
+    {"statements": [...]}, one entry per statement.
+    """
     try:
         with snowflake.connector.connect(
             account=SNOWFLAKE_ACCOUNT,
             host=SNOWFLAKE_HOST,
             authenticator="oauth",
             token=token,
-        ) as conn, conn.cursor() as cursor:
-            cursor.execute(query)
-            columns = [desc[0] for desc in cursor.description] if cursor.description else []
-            rows = cursor.fetchall()
-            return {"columns": columns, "rows": rows}
+        ) as conn:
+            cursors = conn.execute_string(query, return_cursors=True)
+            statements = []
+            for cur in cursors:
+                columns = [desc[0] for desc in cur.description] if cur.description else []
+                rows = cur.fetchall() if cur.description else []
+                statements.append({"query": cur.query, "columns": columns, "rows": rows})
+            if len(statements) == 1:
+                return statements[0]
+            return {"statements": statements}
     except Exception as e:
         return {"error": str(e)}
 
