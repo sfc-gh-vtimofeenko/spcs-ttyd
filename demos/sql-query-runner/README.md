@@ -19,6 +19,11 @@ in SPCS with different authentication contexts:
 - Quick-access buttons for common queries like `SELECT CURRENT_USER()`
 - Side-by-side comparison of results when running the same query in both contexts
 - Visual indication of whether user token is available
+- Container logs record, for every `/execute` call, the calling context
+  (owner vs. caller/RCR), a non-secret token fingerprint, the resolved
+  `CURRENT_USER()`/`CURRENT_ROLE()`/`CURRENT_WAREHOUSE()`, the exact SQL that
+  ran, and an outcome summary — so `SHOW SERVICE CONTAINERS ... ` / container
+  logs make it clear what ran and as whom without touching the response body
 
 ## Running
 

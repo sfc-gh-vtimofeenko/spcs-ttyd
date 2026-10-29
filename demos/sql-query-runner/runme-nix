@@ -17,12 +17,17 @@ A Flask web service that demonstrates running SQL queries as:
 
 NB: This is SQL injection as a service intended for demo purposes only. Do _not_ use in production.
 """
+import hashlib
+import logging
 import os
 
 import snowflake.connector
 from flask import Flask, jsonify, render_template_string, request
 from toolz import excepts, pipe
 from toolz.curried import map as cmap
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("sql-query-runner")
 
 app = Flask(__name__)
 
@@ -615,7 +620,23 @@ def get_user_token_from_request():
     return request.headers.get("Sf-Context-Current-User-Token")
 
 
-def execute_query(query: str, token: str) -> dict:
+def _token_fingerprint(token: str) -> str:
+    """Short, non-secret stand-in for a token, so logs can tell callers apart
+    across requests without ever printing the actual bearer token."""
+    return hashlib.sha256(token.encode()).hexdigest()[:12]
+
+
+def _summarize_result(result: dict) -> str:
+    """One-line human-readable outcome summary for logging."""
+    if "error" in result:
+        return f"error: {result['error']}"
+    if "statements" in result:
+        parts = [f"#{i}: {len(s['rows'])} row(s)" for i, s in enumerate(result["statements"], 1)]
+        return f"{len(result['statements'])} statement(s) ok — " + "; ".join(parts)
+    return f"1 statement ok — {len(result.get('rows', []))} row(s)"
+
+
+def execute_query(query: str, token: str, identity_label: str = "unknown") -> dict:
     """Execute one or more ';'-separated SQL statements against Snowflake using the provided token.
 
     Opens a fresh connection per call, like a normal application request: all
@@ -627,6 +648,8 @@ def execute_query(query: str, token: str) -> dict:
     {columns, rows} shape; multiple statements are returned as
     {"statements": [...]}, one entry per statement.
     """
+    fingerprint = _token_fingerprint(token)
+    logger.info("[%s token=%s] running: %s", identity_label, fingerprint, query)
     try:
         with snowflake.connector.connect(
             account=SNOWFLAKE_ACCOUNT,
@@ -634,17 +657,26 @@ def execute_query(query: str, token: str) -> dict:
             authenticator="oauth",
             token=token,
         ) as conn:
+            with conn.cursor() as identity_cur:
+                identity_cur.execute("SELECT CURRENT_USER(), CURRENT_ROLE(), CURRENT_WAREHOUSE()")
+                user, role, warehouse = identity_cur.fetchone()
+            logger.info(
+                "[%s token=%s] connected as user=%s role=%s warehouse=%s",
+                identity_label, fingerprint, user, role, warehouse,
+            )
             cursors = conn.execute_string(query, return_cursors=True)
             statements = []
             for cur in cursors:
                 columns = [desc[0] for desc in cur.description] if cur.description else []
                 rows = cur.fetchall() if cur.description else []
                 statements.append({"query": cur.query, "columns": columns, "rows": rows})
-            if len(statements) == 1:
-                return statements[0]
-            return {"statements": statements}
+            result = statements[0] if len(statements) == 1 else {"statements": statements}
+            logger.info("[%s token=%s] %s", identity_label, fingerprint, _summarize_result(result))
+            return result
     except Exception as e:
-        return {"error": str(e)}
+        result = {"error": str(e)}
+        logger.info("[%s token=%s] %s", identity_label, fingerprint, _summarize_result(result))
+        return result
 
 
 @app.route("/")
@@ -676,6 +708,7 @@ def execute():
 
     if mode == "owner":
         token = service_token
+        identity_label = "owner"
     else:
         user_token = get_user_token_from_request()
         if not user_token:
@@ -684,8 +717,9 @@ def execute():
             )
         # Combine tokens for caller's rights
         token = f"{service_token}.{user_token}"
+        identity_label = "caller (RCR)"
 
-    result = execute_query(query, token)
+    result = execute_query(query, token, identity_label=identity_label)
     return jsonify(result)
 
 
