@@ -22,10 +22,21 @@ case "$MODE_ARG" in
 esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PAT="$(<"${SCRIPT_DIR}/.pat")"
+if [ -z "${PAT:-}" ]; then
+    PAT_FILE="${PAT_FILE:-${SCRIPT_DIR}/.pat}"
+    if [ ! -r "$PAT_FILE" ]; then
+        echo "Set PAT or PAT_FILE to a readable programmatic access token file." >&2
+        exit 1
+    fi
+    PAT="$(<"$PAT_FILE")"
+fi
 QUERY="$(cat)"
+SERVICE_URL="${URL:?Set URL to the service ingress host or URL.}"
+SERVICE_URL="${SERVICE_URL#https://}"
+SERVICE_URL="${SERVICE_URL#http://}"
+SERVICE_URL="${SERVICE_URL%/}"
 
-curl --location "https://${URL}/execute" \
+curl --fail --location "https://${SERVICE_URL}/execute" \
     --header "Authorization: Snowflake Token=\"${PAT}\"" \
     --header 'Content-Type: application/json' \
     --data "$(jq -n --arg mode "$MODE" --arg query "$QUERY" '{mode: $mode, query: $query}')"
