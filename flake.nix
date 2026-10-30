@@ -69,9 +69,14 @@
               runtimeInputs = [
                 pkgs.uv
                 pkgs.python3
+                pkgs.stdenv.cc.cc.lib
               ];
 
+              # snowflake-connector-python wheels need libstdc++.so.6 at runtime.
               text = ''
+                export LD_LIBRARY_PATH=${
+                  pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]
+                }''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
                 exec uv run --script ${./demos/sql-query-runner/runme-nix} "$@"
               '';
             };

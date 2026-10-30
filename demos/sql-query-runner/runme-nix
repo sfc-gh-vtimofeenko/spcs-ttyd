@@ -1,5 +1,6 @@
 #!/usr/bin/env nix
-#!nix shell nixpkgs#uv nixpkgs#python3 --command uv run --script --no-python-downloads --no-managed-python
+# snowflake-connector-python wheels need libstdc++.so.6, which `nix shell` does not put on the loader path.
+#!nix shell nixpkgs#bash nixpkgs#gcc nixpkgs#uv nixpkgs#python3 --command bash -c ``export LD_LIBRARY_PATH="$(dirname "$(g++ -print-file-name=libstdc++.so.6)")${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"; exec uv run --script --no-python-downloads --no-managed-python "$@"`` bash
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
