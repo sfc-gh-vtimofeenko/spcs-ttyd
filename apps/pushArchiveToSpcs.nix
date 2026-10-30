@@ -13,6 +13,8 @@
     #   SNOWFLAKE_AUTHENTICATOR, SNOWFLAKE_PRIVATE_KEY_PATH)
     # $1: path to docker archive (default: out)
     text = ''
+      : "''${REGISTRY_URL:?REGISTRY_URL must be set}"
+      : "''${IMAGE_TAG:?IMAGE_TAG must be set}"
       ARCHIVE="''${1:-out}"
       TAG="$REGISTRY_URL/$IMAGE_TAG:latest"
 

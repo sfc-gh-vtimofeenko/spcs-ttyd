@@ -2,6 +2,9 @@
   description = "Nix flake that pushes a container with webshell into Snowpark Container Services";
 
   inputs = {
+    flake-parts = {
+      url = "github:hercules-ci/flake-parts";
+    };
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-26.05";
     nixpkgs.follows = "nixpkgs-stable";
@@ -63,9 +66,14 @@
             demoRunSQLas = pkgs.writeShellApplication {
               name = "run-sql-as";
 
-              runtimeInputs = [ ];
+              runtimeInputs = [
+                pkgs.uv
+                pkgs.python3
+              ];
 
-              text = builtins.readFile ./demos/sql-query-runner/runme-nix;
+              text = ''
+                exec uv run --script ${./demos/sql-query-runner/runme-nix} "$@"
+              '';
             };
             default = ttydContainer;
           }
@@ -76,7 +84,7 @@
           };
 
           apps = {
-            buildAndPushToSpcs = import ./apps/buildAndPushToSpcs { inherit pkgs; };
+            buildAndPushToSpcs = import ./apps/buildAndPushToSpcs { inherit pkgs self; };
             mkService = import ./apps/mkService.nix { inherit pkgs; };
             pushArchiveToSpcs = import ./apps/pushArchiveToSpcs.nix { inherit pkgs; };
           };

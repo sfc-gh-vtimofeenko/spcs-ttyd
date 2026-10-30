@@ -26,7 +26,9 @@ pkgs.writeShellApplication {
       meta="$dir/demo.json"
       if [ -f "$meta" ]; then
         name="$(basename "$dir")"
-        desc="$(jq -r '.description' "$meta")"
+        if ! desc="$(jq -er '.description | strings' "$meta" 2>/dev/null)"; then
+          continue
+        fi
         demos+=("$name")
         descriptions+=("$name — $desc")
       fi
@@ -40,7 +42,10 @@ pkgs.writeShellApplication {
     echo "Select a demo to run:"
     echo ""
 
-    choice="$(printf '%s\n' "''${descriptions[@]}" | gum choose)"
+    if ! choice="$(printf '%s\n' "''${descriptions[@]}" | gum choose)"; then
+      echo "No demo selected."
+      exit 0
+    fi
 
     if [ -z "$choice" ]; then
       echo "No demo selected."
@@ -51,7 +56,10 @@ pkgs.writeShellApplication {
     selected="''${choice%% — *}"
 
     meta="$DEMOS_DIR/$selected/demo.json"
-    run_cmd="$(jq -r '.run' "$meta")"
+    if ! run_cmd="$(jq -er '.run | strings' "$meta" 2>/dev/null)"; then
+      echo "Demo metadata is missing a runnable command: $selected" >&2
+      exit 1
+    fi
 
     echo ""
     echo "Launching: $selected"

@@ -69,7 +69,7 @@ let
         snowsql
         moreutils
         caddy
-        unixODBC
+        unixodbc
         uv
         python3
         gum # TUI for demo menu
@@ -90,6 +90,7 @@ pkgs.dockerTools.buildImage {
     name = "image-root";
     pathsToLink = [
       "/bin"
+      "/usr"
       "/etc"
       "/var"
       "/opt"
@@ -109,6 +110,7 @@ pkgs.dockerTools.buildImage {
   # Needs Nix runner with kvm capabilities. GH actions provide one.
   runAsRoot = ''
     mkdir -p /tmp
+    chmod 1777 /tmp
 
     ${pkgs.dockerTools.shadowSetup}
     groupadd -r nixbld
