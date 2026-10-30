@@ -54,42 +54,46 @@
 
             mk-connections-toml = {
               type = "app";
-              program = pkgs.lib.getExe (pkgs.writeShellApplication {
-                name = "mk-connections-toml";
-                runtimeInputs = [ pkgs.envsubst ];
-                text = ''
-                  : "''${SNOWFLAKE_ACCOUNT:?SNOWFLAKE_ACCOUNT must be set}"
-                  : "''${SNOWFLAKE_HOST:?SNOWFLAKE_HOST must be set}"
+              program = pkgs.lib.getExe (
+                pkgs.writeShellApplication {
+                  name = "mk-connections-toml";
+                  runtimeInputs = [ pkgs.envsubst ];
+                  text = ''
+                    : "''${SNOWFLAKE_ACCOUNT:?SNOWFLAKE_ACCOUNT must be set}"
+                    : "''${SNOWFLAKE_HOST:?SNOWFLAKE_HOST must be set}"
 
-                  out="$HOME/.snowflake/connections.toml"
-                  mkdir -p "$(dirname "$out")"
-                  envsubst < ${connectionsTemplate} > "$out"
-                  echo "connections.toml written to $out"
-                '';
-              });
+                    out="$HOME/.snowflake/connections.toml"
+                    mkdir -p "$(dirname "$out")"
+                    envsubst < ${connectionsTemplate} > "$out"
+                    echo "connections.toml written to $out"
+                  '';
+                }
+              );
             };
 
             # Fetches the latest stable version from S3 and updates all
             # per-platform hashes in package.nix via nix-update.
             update-cortex = {
               type = "app";
-              program = pkgs.lib.getExe (pkgs.writeShellApplication {
-                name = "update-cortex";
-                runtimeInputs = [
-                  pkgs.curl
-                  pkgs.nix-update
-                ];
-                text = ''
-                  new=$(curl -fsSL \
-                    "https://sfc-repo.snowflakecomputing.com/cortex-code-cli/a4643c4278/stable_version.txt" \
-                    | tr -d '[:space:]')
-                  echo "Updating to $new"
-                  nix-update --version="$new" --system x86_64-linux   .#cortex
-                  nix-update --version="$new" --system aarch64-linux  .#cortex
-                  nix-update --version="$new" --system x86_64-darwin  .#cortex
-                  nix-update --version="$new" --system aarch64-darwin .#cortex
-                '';
-              });
+              program = pkgs.lib.getExe (
+                pkgs.writeShellApplication {
+                  name = "update-cortex";
+                  runtimeInputs = [
+                    pkgs.curl
+                    pkgs.nix-update
+                  ];
+                  text = ''
+                    new=$(curl -fsSL \
+                      "https://sfc-repo.snowflakecomputing.com/cortex-code-cli/a4643c4278/stable_version.txt" \
+                      | tr -d '[:space:]')
+                    echo "Updating to $new"
+                    nix-update --version="$new" --system x86_64-linux   .#cortex
+                    nix-update --version="$new" --system aarch64-linux  .#cortex
+                    nix-update --version="$new" --system x86_64-darwin  .#cortex
+                    nix-update --version="$new" --system aarch64-darwin .#cortex
+                  '';
+                }
+              );
             };
           };
         };
