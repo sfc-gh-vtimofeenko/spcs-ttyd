@@ -11,10 +11,6 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     env:
-      SNOWFLAKE_AUTHENTICATOR: SNOWFLAKE_JWT
-      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
-      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-      SNOWFLAKE_PRIVATE_KEY_PATH: /home/runner/work/key.p8
       IMAGE_TAG: nix-ttyd-container-archive-skopeo
 
     steps:
@@ -38,14 +34,10 @@ jobs:
         run: |
           nix build -o out .#default
 
-      - name: Set up key
-        run: |
-          cat <<EOF > ${{ env.SNOWFLAKE_PRIVATE_KEY_PATH }}
-          ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
-          EOF
-
       - name: Push image using skopeo
         env:
           REGISTRY_URL: ${{ secrets.REGISTRY_URL }}
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_PAT: ${{ secrets.SNOWFLAKE_PAT }}
         run: |
           nix run .#pushArchiveToSpcs -- out

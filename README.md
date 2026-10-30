@@ -33,11 +33,11 @@ Short version:
     -- https://docs.snowflake.com/en/sql-reference/sql/create-user
     CREATE OR REPLACE USER spcs_ci_cd_usr
     DEFAULT_ROLE = spcs_ci_cd_rl
-    RSA_PUBLIC_KEY = '<publicKey>'
     -- Prevents using password and some other fields
     TYPE = SERVICE
     COMMENT = 'CI/CD user to push image and create a service'
-    -- Optional: set up per-user network role
+    -- Programmatic access tokens for service users require a network policy
+    -- by default
     -- NETWORK_POLICY = CI_CD_POLICY
     ;
     GRANT ROLE spcs_ci_cd_rl TO USER spcs_ci_cd_usr;
@@ -57,9 +57,10 @@ Short version:
       following along the setup from SPCS [tutorials][tutorials], it is
       `tutorial_db.data_schema.tutorial_repository`
     - `SNOWFLAKE_USER` : user to log into repository
-    - `SNOWFLAKE_ACCOUNT` : Snowflake account identifier
-    - `SNOWFLAKE_PRIVATE_KEY` : private key counterpart to public key used when
-      creating dedicated CI/CD user
+    - `SNOWFLAKE_PAT` : [programmatic access token][pat] for the CI/CD user,
+      e.g. created by `ALTER USER spcs_ci_cd_usr ADD PROGRAMMATIC ACCESS TOKEN
+      ci_cd_token ROLE_RESTRICTION = 'SPCS_CI_CD_RL';`. Note that PATs for
+      `TYPE = SERVICE` users require a network policy by default
 4. Run the "Build docker archive and push it using skopeo" workflow
 
 More background is available in [this post][ci-cd].
@@ -202,3 +203,4 @@ A sample Debian-based image is provided in this repo.
 [ci-cd]:
 https://medium.com/@vladimir.timofeenko/snowpark-container-services-ci-cd-building-and-pushing-images-2109f54eaa99
 [tutorials]: https://docs.snowflake.com/en/developer-guide/snowpark-container-services/overview-tutorials
+[pat]: https://docs.snowflake.com/en/user-guide/programmatic-access-tokens
