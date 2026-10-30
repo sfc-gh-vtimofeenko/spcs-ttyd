@@ -1,10 +1,9 @@
-#!/bin/env nix
+#!/usr/bin/env nix
 #!nix shell nixpkgs#uv nixpkgs#python3 --command uv run --script --no-python-downloads --no-managed-python
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
 #     "flask",
-#     "toolz",
 #     "snowflake-connector-python",
 # ]
 # ///
@@ -23,8 +22,6 @@ import os
 
 import snowflake.connector
 from flask import Flask, jsonify, render_template_string, request
-from toolz import excepts, pipe
-from toolz.curried import map as cmap
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("sql-query-runner")
@@ -421,7 +418,7 @@ HTML_TEMPLATE = """
                         <div class="prepared-label">Quick queries</div>
                         <div class="prepared-grid">
                             {% for name, sql in prepared_queries %}
-                            <button class="prepared-btn" onclick="setQuery('{{ sql }}')">{{ name }}</button>
+                            <button class="prepared-btn" onclick='setQuery({{ sql|tojson }})'>{{ name }}</button>
                             {% endfor %}
                         </div>
                     </div>
@@ -620,9 +617,11 @@ def get_user_token_from_request():
     return request.headers.get("Sf-Context-Current-User-Token")
 
 
-def _token_fingerprint(token: str) -> str:
+def _token_fingerprint(token: str | None) -> str:
     """Short, non-secret stand-in for a token, so logs can tell callers apart
     across requests without ever printing the actual bearer token."""
+    if not token:
+        return "unavailable"
     return hashlib.sha256(token.encode()).hexdigest()[:12]
 
 
@@ -702,6 +701,9 @@ def execute():
     if not query.strip():
         return jsonify({"error": "Empty query"})
 
+    if mode not in {"owner", "user"}:
+        return jsonify({"error": "Mode must be 'owner' or 'user'"}), 400
+
     service_token = get_service_token()
     if service_token is None:
         return jsonify({"error": "Service token not available. Are you running in SPCS?"})
@@ -729,23 +731,32 @@ def health():
     return jsonify({"status": "healthy"})
 
 
-def _get_own_endpoint(service_port) -> str:
+def _get_own_endpoint(service_port) -> str | None:
     """Call to get own endpoint address."""
     print("Retrieving the service URL")
-    return pipe(
-        ("SNOWFLAKE_DATABASE", "SNOWFLAKE_SCHEMA", "SNOWFLAKE_SERVICE_NAME"),
-        cmap(lambda it: os.environ[it]),
-        lambda it: str.format(
-            'SHOW ENDPOINTS IN SERVICE {}.{}.{} ->> SELECT "ingress_url" FROM $1 WHERE "port" = {}', *it, service_port
-        ),
-        lambda it: execute_query(query=it, token=get_service_token()),
-        # Construct the https:// URL, IndexError will have the function return None
-        excepts(IndexError, lambda it: "https://" + it["rows"][0][0]),
+    try:
+        database = os.environ["SNOWFLAKE_DATABASE"]
+        schema = os.environ["SNOWFLAKE_SCHEMA"]
+        service_name = os.environ["SNOWFLAKE_SERVICE_NAME"]
+    except KeyError:
+        return None
+
+    result = execute_query(
+        query=(
+            'SHOW ENDPOINTS IN SERVICE {}.{}.{} '
+            '->> SELECT "ingress_url" FROM $1 WHERE "port" = {}'
+        ).format(database, schema, service_name, service_port),
+        token=get_service_token(),
     )
+    try:
+        endpoint = result["rows"][0][0]
+    except (KeyError, IndexError, TypeError):
+        return None
+    return f"https://{endpoint}" if endpoint else None
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("FLASK_RUN_PORT", "8000"))
+    port = int(os.environ.get("FLASK_RUN_PORT", "8001"))
 
     own_endpoint = _get_own_endpoint(port)
     if own_endpoint is None:
