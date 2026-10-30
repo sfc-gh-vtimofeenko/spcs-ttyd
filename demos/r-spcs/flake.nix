@@ -69,9 +69,9 @@
               in
               ''
                 export SNOWFLAKE_TOKEN=$(cat /snowflake/session/token)
-                envsubst < ${ODBCINI}/odbc.ini > ./odbc.ini
-                # Looks like it needs to be in a writeable location?
-                export ODBCINI=$(realpath ./odbc.ini)
+                export ODBCINI="$(mktemp)"
+                trap 'rm -f "$ODBCINI"' EXIT
+                envsubst < ${ODBCINI}/odbc.ini > "$ODBCINI"
               '';
           };
         };
