@@ -48,7 +48,7 @@
                 # This is the content of odbc.ini
                 # "driver" directive allows directly passing .so from the nix store
                 ODBCINI = pkgs.writeTextDir "odbc.ini" ''
-                  [ODBC Data  Sources]
+                  [ODBC Data Sources]
                   SnowflakeDSII = Snowflake
 
                   [SnowflakeDSII]
