@@ -1,0 +1,548 @@
+#!/usr/bin/env nix
+#!nix shell nixpkgs#uv nixpkgs#python3 --command uv run --script --no-python-downloads --no-managed-python
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "fastmcp==3.2.3",
+# ]
+# ///
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shlex
+import signal
+import subprocess
+import threading
+import time
+import uuid
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Callable, Sequence
+
+from fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+
+
+SHELL_SESSION_ID_PATTERN = re.compile(r"^[a-f0-9]{12}$")
+DEFAULT_ZELLIJ_SESSION = "main"
+DEFAULT_STATE_DIR = "/tmp/mcp-shell"
+DEFAULT_WORKSPACE = "/tmp/mcp-workspace"
+MAX_READ_BYTES = 64 * 1024
+MAX_PANE_LINES = 2000
+MAX_COMMAND_SECONDS = 24 * 60 * 60
+
+ANSI_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-Z\\-_]")
+
+
+def _clean_terminal_text(text: str) -> str:
+    """Drop escape sequences and collapse carriage-return redraws to their final text."""
+    lines = []
+    for line in ANSI_PATTERN.sub("", text).replace("\r\n", "\n").split("\n"):
+        segments = [segment for segment in line.split("\r") if segment]
+        lines.append(segments[-1] if segments else "")
+    return "\n".join(lines)
+
+
+@dataclass(frozen=True)
+class Session:
+    shell_session_id: str
+    command: str
+    cwd: str
+    pane_id: str
+    shell_session_dir: Path
+    created_at: float
+    timeout_seconds: float | None
+
+
+class ZellijClient:
+    def __init__(self, zellij_session: str, executable: str = "zellij") -> None:
+        self.zellij_session = zellij_session
+        self.executable = executable
+
+    def _run(
+        self,
+        args: Sequence[str],
+        *,
+        check: bool = True,
+        timeout: float = 10,
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [self.executable, *args],
+            check=check,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+
+    def ensure_zellij_session(self) -> None:
+        existing = self._run(["list-sessions", "--short"], check=False).stdout.splitlines()
+        if self.zellij_session in existing:
+            return
+        self._run(
+            [
+                "attach",
+                "--create-background",
+                self.zellij_session,
+                "--",
+                "bash",
+                "-i",
+            ]
+        )
+
+    def create_pane(self, session: Session, command: str) -> str:
+        result = self._run(
+            [
+                "--session",
+                self.zellij_session,
+                "action",
+                "new-pane",
+                "--name",
+                f"shell-session-{session.shell_session_id}",
+                "--no-focus",
+                "--cwd",
+                session.cwd,
+                "--",
+                "bash",
+                "-lc",
+                command,
+            ]
+        )
+        pane_id = result.stdout.strip()
+        if not pane_id:
+            raise RuntimeError("zellij did not return a pane id")
+        return pane_id
+
+    def dump_screen(self, pane_id: str, full: bool = False) -> str:
+        args = [
+            "--session",
+            self.zellij_session,
+            "action",
+            "dump-screen",
+            "--pane-id",
+            pane_id,
+        ]
+        if full:
+            args.append("--full")
+        return self._run(args).stdout
+
+    def write_chars(self, pane_id: str, text: str) -> None:
+        self._run(
+            [
+                "--session",
+                self.zellij_session,
+                "action",
+                "write-chars",
+                "--pane-id",
+                pane_id,
+                text,
+            ]
+        )
+
+    def close_pane(self, pane_id: str) -> None:
+        self._run(
+            [
+                "--session",
+                self.zellij_session,
+                "action",
+                "close-pane",
+                "--pane-id",
+                pane_id,
+            ],
+            check=False,
+        )
+
+
+class SessionManager:
+    def __init__(
+        self,
+        state_dir: Path,
+        workspace_root: Path,
+        zellij: ZellijClient,
+        clock: Callable[[], float] = time.time,
+    ) -> None:
+        self.state_dir = state_dir
+        self.workspace_root = workspace_root
+        self.zellij = zellij
+        self.clock = clock
+        self._lock = threading.RLock()
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        self.workspace_root.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def session(self) -> str:
+        return self.zellij.session
+
+    def _shell_session_dir(self, shell_session_id: str) -> Path:
+        if not SHELL_SESSION_ID_PATTERN.fullmatch(shell_session_id):
+            raise ValueError("Unknown session id")
+        return self.state_dir / shell_session_id
+
+    def _metadata_path(self, shell_session_id: str) -> Path:
+        return self._shell_session_dir(shell_session_id) / "shell_session.json"
+
+    def _status_path(self, shell_session_id: str) -> Path:
+        return self._shell_session_dir(shell_session_id) / "status"
+
+    def _output_path(self, shell_session_id: str) -> Path:
+        return self._shell_session_dir(shell_session_id) / "output.log"
+
+    def _pid_path(self, shell_session_id: str) -> Path:
+        return self._shell_session_dir(shell_session_id) / "pid"
+
+    def _exit_code_path(self, shell_session_id: str) -> Path:
+        return self._shell_session_dir(shell_session_id) / "exit_code"
+
+    def _write_metadata(self, session: Session) -> None:
+        metadata = {
+            "shell_session_id": session.shell_session_id,
+            "command": session.command,
+            "cwd": session.cwd,
+            "pane_id": session.pane_id,
+            "created_at": session.created_at,
+            "timeout_seconds": session.timeout_seconds,
+        }
+        self._metadata_path(session.shell_session_id).write_text(json.dumps(metadata, indent=2) + "\n")
+
+    def _read_metadata(self, shell_session_id: str) -> Session:
+        try:
+            metadata = json.loads(self._metadata_path(shell_session_id).read_text())
+        except (FileNotFoundError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            raise ValueError("Unknown session id") from exc
+        try:
+            return Session(
+                shell_session_id=shell_session_id,
+                command=str(metadata["command"]),
+                cwd=str(metadata["cwd"]),
+                pane_id=str(metadata["pane_id"]),
+                shell_session_dir=self._shell_session_dir(shell_session_id),
+                created_at=float(metadata["created_at"]),
+                timeout_seconds=(
+                    float(metadata["timeout_seconds"])
+                    if metadata.get("timeout_seconds") is not None
+                    else None
+                ),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("Unknown session id") from exc
+
+    def _write_status(self, shell_session_id: str, status: str) -> None:
+        self._status_path(shell_session_id).write_text(status + "\n")
+
+    def _read_status(self, shell_session_id: str) -> str:
+        try:
+            return self._status_path(shell_session_id).read_text().strip() or "unknown"
+        except FileNotFoundError:
+            return "unknown"
+
+    def _read_exit_code(self, shell_session_id: str) -> int | None:
+        try:
+            return int(self._exit_code_path(shell_session_id).read_text().strip())
+        except (FileNotFoundError, ValueError):
+            return None
+
+    def _build_command(self, session: Session) -> str:
+        pid_path = shlex.quote(str(self._pid_path(session.shell_session_id)))
+        output_path = shlex.quote(str(self._output_path(session.shell_session_id)))
+        status_path = shlex.quote(str(self._status_path(session.shell_session_id)))
+        exit_code_path = shlex.quote(str(self._exit_code_path(session.shell_session_id)))
+        # script gives the command a real pty (live output in the pane, colors,
+        # progress bars) and tees everything to the log. The pty child is a
+        # session leader, so its pid doubles as the process group id.
+        inner_command = (
+            f"printf '%s\\n' $$ > {pid_path}; exec bash -lc {shlex.quote(session.command)}"
+        )
+        return (
+            # Zellij re-runs a held pane on Enter; never re-run a finished session
+            f"if [ -e {exit_code_path} ]; then echo 'Session {session.shell_session_id} already finished'; exit 0; fi; "
+            f"script -qefc {shlex.quote(inner_command)} {output_path}; "
+            f"exit_code=$?; printf '%s' \"$exit_code\" > {exit_code_path}; "
+            f"if [ \"$(cat {status_path} 2>/dev/null || true)\" = running ]; then "
+            f"printf '%s\\n' completed > {status_path}; fi; "
+            f"printf '\\n[session {session.shell_session_id} exited with code %s]\\n' \"$exit_code\"; "
+            f'exit "$exit_code"'
+        )
+
+    def _session_payload(self, session: Session) -> dict[str, Any]:
+        status = self._read_status(session.shell_session_id)
+        try:
+            output_bytes = self._output_path(session.shell_session_id).stat().st_size
+        except FileNotFoundError:
+            output_bytes = 0
+        return {
+            "shell_session_id": session.shell_session_id,
+            "command": session.command,
+            "cwd": session.cwd,
+            "pane_id": session.pane_id,
+            "status": status,
+            "exit_code": self._read_exit_code(session.shell_session_id),
+            "created_at": session.created_at,
+            "timeout_seconds": session.timeout_seconds,
+            "output_bytes": output_bytes,
+        }
+
+    def _resolve_cwd(self, cwd: str | None) -> Path:
+        path = Path(cwd).expanduser() if cwd else self.workspace_root
+        if not path.is_absolute():
+            path = self.workspace_root / path
+        path = path.resolve()
+        try:
+            path.relative_to(self.workspace_root.resolve())
+        except ValueError as exc:
+            raise ValueError(f"Working directory must be inside {self.workspace_root}") from exc
+        if not path.is_dir():
+            raise ValueError(f"Working directory does not exist: {path}")
+        return path
+
+    def start_shell_session(
+        self,
+        command: str,
+        cwd: str | None = None,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        if not command.strip():
+            raise ValueError("Command must not be empty")
+        if timeout_seconds is not None and not 0 < timeout_seconds <= MAX_COMMAND_SECONDS:
+            raise ValueError(f"timeout_seconds must be between 1 and {MAX_COMMAND_SECONDS}")
+        working_directory = self._resolve_cwd(cwd)
+        shell_session_id = uuid.uuid4().hex[:12]
+        session = Session(
+            shell_session_id=shell_session_id,
+            command=command,
+            cwd=str(working_directory),
+            pane_id="pending",
+            shell_session_dir=self._shell_session_dir(shell_session_id),
+            created_at=self.clock(),
+            timeout_seconds=timeout_seconds,
+        )
+        with self._lock:
+            session.shell_session_dir.mkdir()
+            self._write_metadata(session)
+            self._write_status(shell_session_id, "running")
+            self._output_path(shell_session_id).touch()
+            try:
+                self.zellij.ensure_zellij_session()
+                pane_id = self.zellij.create_pane(session, self._build_command(session))
+            except Exception as exc:
+                self._write_status(shell_session_id, "failed")
+                raise RuntimeError(f"Unable to start zellij pane: {exc}") from exc
+            session = Session(
+                shell_session_id=session.shell_session_id,
+                command=session.command,
+                cwd=session.cwd,
+                pane_id=pane_id,
+                shell_session_dir=session.shell_session_dir,
+                created_at=session.created_at,
+                timeout_seconds=session.timeout_seconds,
+            )
+            self._write_metadata(session)
+        if timeout_seconds is not None:
+            timer = threading.Timer(timeout_seconds, self._stop_if_running, args=(shell_session_id,))
+            timer.daemon = True
+            timer.start()
+        return self._session_payload(session)
+
+    def _stop_if_running(self, shell_session_id: str) -> None:
+        try:
+            if self._read_status(shell_session_id) == "running":
+                self.stop_shell_session(shell_session_id)
+        except ValueError:
+            return
+
+    def read_shell_session(
+        self,
+        shell_session_id: str,
+        offset: int = 0,
+        max_bytes: int = 32 * 1024,
+        strip_ansi: bool = True,
+    ) -> dict[str, Any]:
+        if offset < 0:
+            raise ValueError("offset must not be negative")
+        if not 0 < max_bytes <= MAX_READ_BYTES:
+            raise ValueError(f"max_bytes must be between 1 and {MAX_READ_BYTES}")
+        session = self._read_metadata(shell_session_id)
+        try:
+            output = self._output_path(shell_session_id).read_bytes()
+        except FileNotFoundError:
+            output = b""
+        chunk = output[offset : offset + max_bytes]
+        text = chunk.decode("utf-8", errors="replace")
+        return {
+            **self._session_payload(session),
+            "offset": offset,
+            "next_offset": offset + len(chunk),
+            "has_more": offset + len(chunk) < len(output),
+            "output": _clean_terminal_text(text) if strip_ansi else text,
+        }
+
+    def read_shell_pane(self, shell_session_id: str, full: bool = False, max_lines: int = 200) -> dict[str, Any]:
+        if not 0 < max_lines <= MAX_PANE_LINES:
+            raise ValueError(f"max_lines must be between 1 and {MAX_PANE_LINES}")
+        session = self._read_metadata(shell_session_id)
+        try:
+            screen = self.zellij.dump_screen(session.pane_id, full)
+        except subprocess.CalledProcessError as exc:
+            raise ValueError(f"Pane {session.pane_id} is not available; it may have been closed") from exc
+        lines = screen.rstrip().splitlines()
+        return {
+            **self._session_payload(session),
+            "total_lines": len(lines),
+            "truncated": len(lines) > max_lines,
+            "screen": "\n".join(lines[-max_lines:]),
+        }
+
+    def send_shell_input(self, shell_session_id: str, input_text: str) -> dict[str, Any]:
+        session = self._read_metadata(shell_session_id)
+        if self._read_status(shell_session_id) != "running":
+            raise ValueError("Session is not running")
+        self.zellij.write_chars(session.pane_id, input_text)
+        return {"shell_session_id": shell_session_id, "sent_bytes": len(input_text.encode("utf-8"))}
+
+    def stop_shell_session(self, shell_session_id: str) -> dict[str, Any]:
+        session = self._read_metadata(shell_session_id)
+        with self._lock:
+            if self._read_status(shell_session_id) == "running":
+                # Mark first so the pane wrapper doesn't record this as completed
+                self._write_status(shell_session_id, "stopped")
+                try:
+                    pid = int(self._pid_path(shell_session_id).read_text().strip())
+                except (FileNotFoundError, ValueError):
+                    pid = None
+                if pid is not None:
+                    try:
+                        os.killpg(pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                    time.sleep(0.1)
+                    try:
+                        os.killpg(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+            # Finished sessions keep their pane for review until explicitly stopped
+            self.zellij.close_pane(session.pane_id)
+        return self._session_payload(session)
+
+    def list_shell_sessions(self) -> list[dict[str, Any]]:
+        sessions: list[dict[str, Any]] = []
+        for shell_session_dir in sorted(self.state_dir.iterdir()):
+            if not shell_session_dir.is_dir() or not SHELL_SESSION_ID_PATTERN.fullmatch(shell_session_dir.name):
+                continue
+            try:
+                sessions.append(self._session_payload(self._read_metadata(shell_session_dir.name)))
+            except ValueError:
+                continue
+        return sessions
+
+
+mcp = FastMCP(
+    "SPCS shell",
+    instructions=(
+        "Run commands in the SPCS container through an asynchronous shell. Each "
+        "command runs in its own pane of the shared zellij session, which a person "
+        "can watch live in the web shell. Start with start_shell_session, poll "
+        "read_shell_session with the returned next_offset for new log output, and use "
+        "read_shell_pane to see exactly what is on screen. Commands run as the service "
+        "container identity."
+    ),
+)
+manager: SessionManager | None = None
+
+
+def _active_manager() -> SessionManager:
+    if manager is None:
+        raise RuntimeError("The MCP server is not configured")
+    return manager
+
+
+@mcp.tool
+def start_shell_session(
+    command: str,
+    cwd: str | None = None,
+    timeout_seconds: float | None = None,
+) -> dict[str, Any]:
+    """Start a shell command in the shared zellij session and return its session id."""
+    return _active_manager().start_shell_session(command, cwd, timeout_seconds)
+
+
+@mcp.tool
+def read_shell_session(
+    shell_session_id: str,
+    offset: int = 0,
+    max_bytes: int = 32 * 1024,
+    strip_ansi: bool = True,
+) -> dict[str, Any]:
+    """Read new output from a command's log, starting at `offset`.
+
+    Pass the previous call's `next_offset` to get only new output. The log
+    survives the pane being closed. Escape codes are stripped by default.
+    """
+    return _active_manager().read_shell_session(shell_session_id, offset, max_bytes, strip_ansi)
+
+
+@mcp.tool
+def read_shell_pane(shell_session_id: str, full: bool = False, max_lines: int = 200) -> dict[str, Any]:
+    """Return what the command's zellij pane currently shows, last `max_lines` lines.
+
+    This is the same text a person sees in the web shell, including prompts and
+    interactive output. Use full=True to include scrollback. Fails if the pane
+    was closed; use read_shell_session for the durable log.
+    """
+    return _active_manager().read_shell_pane(shell_session_id, full, max_lines)
+
+
+@mcp.tool
+def send_shell_input(shell_session_id: str, input_text: str) -> dict[str, Any]:
+    """Type text into a running command's pane. Include "\\n" to press Enter."""
+    return _active_manager().send_shell_input(shell_session_id, input_text)
+
+
+@mcp.tool
+def stop_shell_session(shell_session_id: str) -> dict[str, Any]:
+    """Stop a running command if needed and close its pane.
+
+    Finished commands keep their pane open so the output stays visible in the
+    web shell. Call this to clean it up.
+    """
+    return _active_manager().stop_shell_session(shell_session_id)
+
+
+@mcp.tool
+def list_shell_sessions() -> dict[str, Any]:
+    """List command sessions known to this container instance."""
+    return {"sessions": _active_manager().list_shell_sessions()}
+
+
+@mcp.custom_route("/health", methods=["GET"], include_in_schema=False)
+async def health(_: Request) -> JSONResponse:
+    return JSONResponse({"status": "healthy", "zellij_session": _active_manager().zellij_session})
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="SPCS shell MCP server")
+    parser.add_argument("--port", type=int, default=int(os.environ.get("MCP_PORT", "8001")))
+    parser.add_argument("--zellij-session", default=os.environ.get("ZELLIJ_SESSION", DEFAULT_ZELLIJ_SESSION))
+    parser.add_argument("--state-dir", type=Path, default=Path(os.environ.get("MCP_STATE_DIR", DEFAULT_STATE_DIR)))
+    parser.add_argument("--workspace", type=Path, default=Path(os.environ.get("MCP_WORKSPACE", DEFAULT_WORKSPACE)))
+    args = parser.parse_args()
+
+    global manager
+    manager = SessionManager(
+        state_dir=args.state_dir,
+        workspace_root=args.workspace,
+        zellij=ZellijClient(args.zellij_session),
+    )
+    manager.zellij.ensure_zellij_session()
+    mcp.run(
+        transport="streamable-http",
+        host="0.0.0.0",
+        port=args.port,
+        path="/mcp",
+        show_banner=False,
+    )
+
+
+if __name__ == "__main__":
+    main()

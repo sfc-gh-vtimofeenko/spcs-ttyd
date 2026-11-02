@@ -1,0 +1,4 @@
+{
+  "description": "Expose the SPCS shell and Nix environment through MCP",
+  "run": "./runme-nix"
+}
