@@ -34,6 +34,8 @@ let
     doCheck = false;
   });
 
+  webshell = import ./supervisor.nix { inherit pkgs; };
+
   nixConfig = pkgs.stdenv.mkDerivation {
     name = "nix-conf";
     src = ./.;
@@ -64,6 +66,8 @@ let
         curl # Curl
         ttyd # webshell
         inetutils # Telnet
+        zellij # shared terminal sessions
+        util-linux # setsid and friends
         htop # Some monitoring
         gnugrep
         snowsql
@@ -80,6 +84,8 @@ let
       demos
       demoMenu
       snowflake-cli
+      webshell.supervisor
+      webshell.zellijConfig
     ];
 in
 pkgs.dockerTools.buildImage {
@@ -119,6 +125,8 @@ pkgs.dockerTools.buildImage {
 
   architecture = "amd64";
 
+  config.Cmd = [ "/bin/webshell-supervisor" ];
+
   config.Env = [
     "NIX_PAGER=cat"
     # A user is required by nix
@@ -126,5 +134,9 @@ pkgs.dockerTools.buildImage {
     "USER=nobody"
     # Allows using curl and other network utilities needing SSL. Provided by cacert above
     "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
+    # Provided by webshell.zellijConfig (mouse capture off)
+    "ZELLIJ_CONFIG_DIR=/etc/zellij"
+    # Session that ttyd attaches to; demos can start panes in the same session
+    "ZELLIJ_SESSION=main"
   ];
 }

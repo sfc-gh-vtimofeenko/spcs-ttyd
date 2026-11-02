@@ -9,10 +9,7 @@ spec:
        - name: workbench-1
          image: <% registry_url %>/<% image_tag %>
          command:
-           - "ttyd"
-           - "--port=8000"
-           - "--writable"
-           - "bash"
+           - "webshell-supervisor"
          volumeMounts:
            - name: shared-stage
              mountPath: /shared-stage
